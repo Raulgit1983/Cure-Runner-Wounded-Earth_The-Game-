@@ -742,7 +742,11 @@ body::before {
 
 .hud__action {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 76px;
+  min-height: 44px;
   padding: 9px 12px;
   border-radius: 14px;
   border: 1px solid var(--panel-border);
@@ -891,5 +895,30 @@ body::before {
     top: 14px;
     left: 14px;
     right: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .entry-shell__planet-orbit,
+  .entry-shell__planet,
+  .entry-shell__loader span {
+    animation: none;
+  }
+
+  .entry-shell,
+  .entry-shell__button,
+  .entry-flow__title-stage,
+  #entry-loading,
+  .hud,
+  .hud__pulse,
+  .hud__notes,
+  .spark-meter__fill,
+  .entry-flow__cta {
+    transition-duration: 0ms;
+  }
+
+  .hud__notes--pulse,
+  .hud__notes--full-burst {
+    animation-duration: 1ms;
   }
 }

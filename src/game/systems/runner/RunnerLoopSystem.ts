@@ -168,8 +168,10 @@ export class RunnerLoopSystem {
     this.updateHeroPhysics(deltaSeconds);
     this.updateFeedback(deltaSeconds);
 
+    const speedMultiplier = this.stage.runner.speedMultiplier ?? 1;
     const rawSpeed =
       runnerConfig.movement.baseSpeed *
+      speedMultiplier *
       (1 + displayLevel * runnerConfig.movement.displaySpeedBonus) *
       (1 - this.getStaggerAmount() * runnerConfig.obstacle.speedPenalty);
     const level = this.stage.runner.level;
@@ -248,6 +250,10 @@ export class RunnerLoopSystem {
   destroy() {
     this.scene.input.off('pointerdown', this.handlePointerDown, this);
     this.scene.input.off('pointerup', this.handlePointerUp, this);
+    this.scene.input.keyboard?.off('keydown-SPACE', this.handleKeyDown, this);
+    this.scene.input.keyboard?.off('keyup-SPACE', this.handleKeyUp, this);
+    this.scene.input.keyboard?.off('keydown-UP', this.handleKeyDown, this);
+    this.scene.input.keyboard?.off('keyup-UP', this.handleKeyUp, this);
     this.entities.forEach((entity) => {
       entity.container.destroy(true);
     });
@@ -287,6 +293,10 @@ export class RunnerLoopSystem {
   private bindInput() {
     this.scene.input.on('pointerdown', this.handlePointerDown, this);
     this.scene.input.on('pointerup', this.handlePointerUp, this);
+    this.scene.input.keyboard?.on('keydown-SPACE', this.handleKeyDown, this);
+    this.scene.input.keyboard?.on('keyup-SPACE', this.handleKeyUp, this);
+    this.scene.input.keyboard?.on('keydown-UP', this.handleKeyDown, this);
+    this.scene.input.keyboard?.on('keyup-UP', this.handleKeyUp, this);
   }
 
   private handlePointerDown() {
@@ -303,6 +313,30 @@ export class RunnerLoopSystem {
   private handlePointerUp() {
     this.pointerHeld = false;
     this.holdJumpSeconds = 0;
+  }
+
+  private handleKeyDown(event: KeyboardEvent) {
+    if (event.repeat) {
+      return;
+    }
+
+    const target = event.target as HTMLElement | null;
+    if (
+      target &&
+      (target.tagName === 'BUTTON' ||
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA')
+    ) {
+      return;
+    }
+
+    event.preventDefault();
+    this.handlePointerDown();
+  }
+
+  private handleKeyUp(event: KeyboardEvent) {
+    event.preventDefault();
+    this.handlePointerUp();
   }
 
   private updateHeroPhysics(deltaSeconds: number) {
