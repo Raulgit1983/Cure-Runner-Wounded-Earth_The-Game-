@@ -21,6 +21,7 @@ export interface JourneyLevelProfile {
 }
 
 export interface JourneyRunnerContent {
+  speedMultiplier?: number;
   phrases: RunnerPhraseMap;
   initialPhraseId: RunnerPhraseId;
   onboardingSequence: RunnerPhraseId[];
