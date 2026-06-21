@@ -13,6 +13,13 @@ Build an original mobile-first web game for Mateo that feels hand-crafted, emoti
 - Low-waste AI usage: request the smallest useful slice, make the smallest reviewable change, validate before closing.
 - Incremental delivery: prefer stable vertical slices over speculative frameworks.
 
+## Current Foundation Status (2026-06-21)
+- A level registry exists ([levels/](../src/game/content/levels/)) but only wraps the current `wounded-planet` stage as `w1-l1`. It is metadata, not yet consumed in gameplay.
+- `JourneyScene.ts` is too large and must be decomposed incrementally (BackdropRenderer → GuidanceDirector → overlays), one extraction per commit.
+- Firebase is currently a no-op stub, imported by nobody. Do not treat it as implemented.
+- Do not author levels 2-10 until the extractions and an expanded `LevelDefinition` are in place.
+- `docs/memory/` is the stable memory layer for agents. Read [project-current-state.md](../docs/memory/project-current-state.md) and [next-agent-brief.md](../docs/memory/next-agent-brief.md) before a slice.
+
 ## Slice Gate
 - State the decision, scope, and files touched.
 - Run validation before closure.
