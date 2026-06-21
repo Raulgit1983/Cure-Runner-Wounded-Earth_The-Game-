@@ -9,10 +9,14 @@ import heroJumpRiseTextureUrl from '@/assets/hero/hero-jump-rise.webp';
 import heroTextureUrl from '@/assets/hero/hero-main.webp';
 import { journeyStages, type JourneyStageKey } from '@/game/content/journeyStages';
 import { heroProfile } from '@/game/content/heroProfile';
+import { getFirstLevel } from '@/game/content/levels/levelRegistry';
 
 const loadJourneyScene = () => import('@/game/scenes/JourneyScene');
 const loadLevelEntryScene = () => import('@/game/scenes/LevelEntryScene');
-const INITIAL_STAGE_KEY: JourneyStageKey = 'wounded-planet';
+// Resolve the initial playable content through the level registry.
+// For this slice the first level wraps the existing 'wounded-planet' stage,
+// so this is identical to the previous hardcoded value — behavior is unchanged.
+const INITIAL_STAGE_KEY: JourneyStageKey = getFirstLevel().stageKey;
 
 export class BootScene extends Phaser.Scene {
   private loadingTrack?: Phaser.GameObjects.Graphics;

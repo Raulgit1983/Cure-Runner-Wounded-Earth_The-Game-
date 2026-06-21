@@ -9,3 +9,17 @@ dist
 *.crt
 *.p12
 *.pfx
+
+# Unused source/reference image drafts — kept on disk, never bundled at runtime.
+# Runtime art lives under src/assets/<domain>/ and is imported explicitly.
+/Imagenes/
+/src/assets/hero/phase1-png/
+/Heroe del juego.png
+/Heroe.jpeg
+/planet_core_asset.png
+/planet_state_1_damaged.png
+/planet_state_2_stirring.png
+/planet_state_3_healing.png
+/revised_planet_asset.png
+/25f5581d-28e6-4707-870a-36c7a715d260.jpg
+/874f771c-6983-4a54-a0ac-041bf47e6656.jpg
