@@ -9,6 +9,21 @@ const getAudioContextCtor = (): AudioContextCtor | null => {
   return scopedWindow.AudioContext ?? scopedWindow.webkitAudioContext ?? null;
 };
 
+// Collect cue uses a major-pentatonic run so each chained pickup steps up the
+// scale (C D E G A across ~two octaves). Pentatonic notes stay consonant at any
+// chain length, so the melody is always gentle/hopeful and never shrill. The
+// chain resets to the root when the combo breaks — collecting becomes a small,
+// readable musical phrase that rewards timing and attention.
+const COLLECT_ROOT_HZ = 523.25; // C5
+const COLLECT_SCALE_SEMITONES = [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24];
+
+const collectNoteFrequency = (chain: number) => {
+  const step = Math.max(0, Math.floor(chain) - 1);
+  const semitone = COLLECT_SCALE_SEMITONES[Math.min(step, COLLECT_SCALE_SEMITONES.length - 1)];
+
+  return COLLECT_ROOT_HZ * 2 ** (semitone / 12);
+};
+
 class ReactiveAudioLayer {
   private context: AudioContext | null = null;
   private master: GainNode | null = null;
@@ -95,10 +110,12 @@ class ReactiveAudioLayer {
 
   private renderCue(context: AudioContext, master: GainNode, event: AudioCueEvent) {
     if (event.type === 'spark_collect') {
-      const chainLift = Math.min(0.18, (event.chain ?? 0) * 0.015);
+      const note = collectNoteFrequency(event.chain ?? 1);
       this.playTone(context, master, {
-        from: 620 + chainLift * 600,
-        to: 880 + chainLift * 520,
+        // Gentle upward ping into the scale note keeps the pluck-like attack
+        // while the landing pitch carries the climbing melody.
+        from: note * 0.94,
+        to: note,
         duration: 0.1,
         volume: 0.04 + Math.min(0.018, event.intensity * 0.006),
         type: 'triangle'
