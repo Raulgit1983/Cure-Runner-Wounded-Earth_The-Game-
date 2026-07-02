@@ -82,6 +82,7 @@ export interface RunnerLoopSnapshot {
   currentPhraseFamily: PhraseFamily;
   projectedLandingX: number | null;
   runFailed: boolean;
+  invulnerabilitySeconds: number;
 }
 
 const collectRadiusSquared = runnerConfig.rewards.collectRadius * runnerConfig.rewards.collectRadius;
@@ -201,8 +202,18 @@ export class RunnerLoopSystem {
       currentPhraseLabel: this.currentPhraseLabel,
       currentPhraseFamily: this.currentPhraseFamily,
       projectedLandingX: this.showDebug ? this.projectLandingScreenX() : null,
-      runFailed: this.failed
+      runFailed: this.failed,
+      invulnerabilitySeconds: this.invulnerabilitySeconds
     };
+  }
+
+  /**
+   * Grant a grace window from an external recovery (shark touch, reserve save,
+   * etc.) so the player is not instantly hit again right after being helped.
+   * Only ever extends the current window — never shortens it.
+   */
+  grantGrace(seconds: number) {
+    this.invulnerabilitySeconds = Math.max(this.invulnerabilitySeconds, seconds);
   }
 
   debugSnapshot(): RunnerDebugEntitySnapshot[] {
@@ -940,7 +951,11 @@ export class RunnerLoopSystem {
     this.collectBurst = Math.max(0, this.collectBurst - (shouldFail ? 0.24 : 0.18));
     this.chainBurst = Math.max(0, this.chainBurst - (shouldFail ? 0.28 : 0.18));
     this.staggerSeconds = runnerConfig.obstacle.staggerSeconds;
-    this.invulnerabilitySeconds = runnerConfig.obstacle.invulnerabilitySeconds;
+    // A reserve save (last pulse spent to survive) earns extra grace — the
+    // player just barely recovered and is likely still inside a tight cluster.
+    const reserveSaved = transition.after.recoveryChances < transition.before.recoveryChances;
+    this.invulnerabilitySeconds =
+      runnerConfig.obstacle.invulnerabilitySeconds + (reserveSaved ? 0.35 : 0);
     this.recoveryQueued = !shouldFail;
     this.failed = shouldFail;
     runTelemetryStore.noteObstacleHit();

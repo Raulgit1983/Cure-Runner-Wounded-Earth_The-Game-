@@ -65,190 +65,216 @@ export interface JourneyStageDefinition {
   runner: JourneyRunnerContent;
 }
 
+// Moonlight phrases use ONE readable visual vocabulary so a child reads each
+// action at a glance — and crucially the two verbs never share a sprite:
+//   - shard  (y:18)   => JUMP OVER. A crystal that sits ON the ground line
+//                        (its shadow lands at groundLineY), like Level 1 spikes.
+//   - mirror (y:172)  => RUN UNDER. A reflective panel clearly OVERHEAD
+//                        (>=25px head clearance) — never a low/floating blocker.
+//   - crown  (y:198)  => RUN UNDER. A jagged formation hanging overhead.
+//   - ledge           => PLATFORM ROUTE (double-jump up, collect, drop).
+// Jump = grounded crystal; Under = overhead mirror/crown. Rules baked in:
+//   - consecutive hazards spaced >=130px (~0.75s) for a readable cadence
+//   - every collectible within ~70px of a hazard sits grounded (y<=112) so a
+//     note never baits a jump into an overhead hazard nor a clip on a jump
+//   - no overhead hazard right after a ledge (the drop arc would clip it)
+//   - a grounded "recovery" note sits between dense beats
+// No low/mid-body mirrors: they read as floating and are ambiguous, so every
+// jump-over hazard is a grounded shard.
 const moonlightPhrases: RunnerPhraseMap = {
   moonlight_intro: {
     id: 'moonlight_intro',
     label: 'Moonlight Intro',
     family: 'onboarding',
     spacingAfter: 476,
+    // Gentle collect line with a single grounded shard to jump.
     items: [
       { kind: 'collectible', variant: 'spark', x: 84, y: 58 },
-      { kind: 'collectible', variant: 'note', x: 146, y: 92 },
-      { kind: 'collectible', variant: 'brush', x: 210, y: 132 },
-      { kind: 'hazard', variant: 'shard', x: 248, y: 18 },
-      { kind: 'collectible', variant: 'spark', x: 304, y: 116 },
-      { kind: 'collectible', variant: 'note', x: 366, y: 152 },
-      { kind: 'collectible', variant: 'brush', x: 428, y: 110 }
+      { kind: 'collectible', variant: 'note', x: 150, y: 96 },
+      { kind: 'collectible', variant: 'brush', x: 214, y: 110 },
+      { kind: 'hazard', variant: 'shard', x: 268, y: 18 },
+      { kind: 'collectible', variant: 'spark', x: 336, y: 110 },
+      { kind: 'collectible', variant: 'note', x: 400, y: 96 },
+      { kind: 'collectible', variant: 'brush', x: 458, y: 80 }
     ]
   },
   moonlight_gate: {
     id: 'moonlight_gate',
     label: 'Moonlight Gate',
     family: 'onboarding',
-    spacingAfter: 528,
+    spacingAfter: 520,
+    // Teaches JUMP: two grounded shards, each with a low reward note after it.
     items: [
       { kind: 'collectible', variant: 'note', x: 96, y: 86 },
-      { kind: 'hazard', variant: 'shard', x: 164, y: 18 },
-      { kind: 'collectible', variant: 'spark', x: 222, y: 126 },
-      { kind: 'hazard', variant: 'mirror', x: 268, y: 132 },
-      { kind: 'collectible', variant: 'brush', x: 320, y: 170 },
-      { kind: 'collectible', variant: 'note', x: 378, y: 136 },
-      { kind: 'collectible', variant: 'spark', x: 438, y: 94 }
+      { kind: 'hazard', variant: 'shard', x: 168, y: 18 },
+      { kind: 'collectible', variant: 'spark', x: 236, y: 112 },
+      { kind: 'collectible', variant: 'note', x: 300, y: 96 },
+      { kind: 'hazard', variant: 'shard', x: 372, y: 18 },
+      { kind: 'collectible', variant: 'spark', x: 440, y: 112 },
+      { kind: 'collectible', variant: 'note', x: 500, y: 92 }
     ]
   },
   moonlight_reflect: {
     id: 'moonlight_reflect',
     label: 'Moonlight Reflect',
     family: 'onboarding',
-    spacingAfter: 552,
+    spacingAfter: 540,
+    // Teaches RUN-UNDER: an overhead mirror then a crown, both cleared by
+    // staying grounded and collecting the low note line. No jump required.
     items: [
-      { kind: 'collectible', variant: 'spark', x: 86, y: 58 },
-      { kind: 'collectible', variant: 'note', x: 142, y: 98 },
-      { kind: 'hazard', variant: 'mirror', x: 202, y: 124 },
-      { kind: 'collectible', variant: 'brush', x: 248, y: 160 },
-      { kind: 'collectible', variant: 'note', x: 306, y: 190 },
-      { kind: 'hazard', variant: 'crown', x: 372, y: 196 },
-      { kind: 'collectible', variant: 'spark', x: 428, y: 142 },
-      { kind: 'collectible', variant: 'note', x: 486, y: 104 }
+      { kind: 'collectible', variant: 'spark', x: 88, y: 60 },
+      { kind: 'collectible', variant: 'note', x: 150, y: 100 },
+      { kind: 'hazard', variant: 'mirror', x: 214, y: 172 },
+      { kind: 'collectible', variant: 'brush', x: 280, y: 96 },
+      { kind: 'collectible', variant: 'note', x: 340, y: 104 },
+      { kind: 'hazard', variant: 'crown', x: 404, y: 198 },
+      { kind: 'collectible', variant: 'spark', x: 464, y: 92 },
+      { kind: 'collectible', variant: 'note', x: 520, y: 100 }
     ]
   },
   moonlight_launch: {
     id: 'moonlight_launch',
     label: 'Moonlight Launch',
     family: 'onboarding',
-    spacingAfter: 596,
+    spacingAfter: 600,
+    // Teaches the PLATFORM ROUTE: jump the shard, double-jump onto the ledge to
+    // collect the high line, then drop and collect. No overhead after the ledge.
     items: [
       { kind: 'collectible', variant: 'spark', x: 88, y: 54 },
-      { kind: 'hazard', variant: 'shard', x: 136, y: 18 },
-      { kind: 'collectible', variant: 'note', x: 204, y: 84 },
-      { kind: 'collectible', variant: 'brush', x: 248, y: 128 },
-      { kind: 'hazard', variant: 'mirror', x: 278, y: 146 },
-      { kind: 'platform', variant: 'ledge', x: 382, y: 190, width: 188 },
-      { kind: 'collectible', variant: 'spark', x: 334, y: 182 },
-      { kind: 'collectible', variant: 'note', x: 386, y: 214 },
-      { kind: 'collectible', variant: 'brush', x: 436, y: 196 },
-      { kind: 'hazard', variant: 'crown', x: 526, y: 204 },
-      { kind: 'collectible', variant: 'note', x: 566, y: 146 }
+      { kind: 'hazard', variant: 'shard', x: 150, y: 18 },
+      { kind: 'collectible', variant: 'note', x: 220, y: 96 },
+      { kind: 'collectible', variant: 'brush', x: 270, y: 110 },
+      { kind: 'platform', variant: 'ledge', x: 396, y: 180, width: 188 },
+      { kind: 'collectible', variant: 'spark', x: 352, y: 176 },
+      { kind: 'collectible', variant: 'note', x: 404, y: 210 },
+      { kind: 'collectible', variant: 'brush', x: 452, y: 188 },
+      { kind: 'collectible', variant: 'note', x: 520, y: 120 },
+      { kind: 'collectible', variant: 'spark', x: 566, y: 96 }
     ]
   },
   moonlight_shard_step: {
     id: 'moonlight_shard_step',
     label: 'Moonlight Shard Step',
     family: 'tension',
-    spacingAfter: 588,
+    spacingAfter: 552,
+    // JUMP rhythm: two grounded shards, "jump, land, jump".
     items: [
       { kind: 'collectible', variant: 'spark', x: 82, y: 58 },
-      { kind: 'hazard', variant: 'shard', x: 134, y: 18 },
-      { kind: 'collectible', variant: 'note', x: 202, y: 86 },
-      { kind: 'hazard', variant: 'shard', x: 270, y: 18 },
-      { kind: 'collectible', variant: 'brush', x: 334, y: 124 },
-      { kind: 'hazard', variant: 'mirror', x: 390, y: 154 },
-      { kind: 'collectible', variant: 'note', x: 446, y: 112 },
-      { kind: 'collectible', variant: 'spark', x: 504, y: 74 }
+      { kind: 'hazard', variant: 'shard', x: 140, y: 18 },
+      { kind: 'collectible', variant: 'note', x: 206, y: 112 },
+      { kind: 'hazard', variant: 'shard', x: 286, y: 18 },
+      { kind: 'collectible', variant: 'brush', x: 356, y: 110 },
+      { kind: 'collectible', variant: 'spark', x: 426, y: 100 },
+      { kind: 'collectible', variant: 'note', x: 492, y: 96 }
     ]
   },
   moonlight_mirror_arc: {
     id: 'moonlight_mirror_arc',
     label: 'Moonlight Mirror Arc',
     family: 'tension',
-    spacingAfter: 604,
+    spacingAfter: 600,
+    // UNDER, JUMP, UNDER: run under an overhead mirror, jump a grounded shard,
+    // run under another mirror. Collectibles by the mirrors stay grounded.
     items: [
-      { kind: 'collectible', variant: 'note', x: 92, y: 82 },
-      { kind: 'hazard', variant: 'mirror', x: 150, y: 126 },
-      { kind: 'collectible', variant: 'spark', x: 202, y: 152 },
-      { kind: 'collectible', variant: 'brush', x: 254, y: 184 },
-      { kind: 'hazard', variant: 'crown', x: 316, y: 204 },
-      { kind: 'collectible', variant: 'spark', x: 372, y: 164 },
-      { kind: 'hazard', variant: 'mirror', x: 428, y: 128 },
-      { kind: 'collectible', variant: 'note', x: 490, y: 92 }
+      { kind: 'collectible', variant: 'note', x: 92, y: 96 },
+      { kind: 'hazard', variant: 'mirror', x: 160, y: 172 },
+      { kind: 'collectible', variant: 'spark', x: 226, y: 100 },
+      { kind: 'hazard', variant: 'shard', x: 300, y: 18 },
+      { kind: 'collectible', variant: 'brush', x: 366, y: 100 },
+      { kind: 'hazard', variant: 'mirror', x: 436, y: 172 },
+      { kind: 'collectible', variant: 'spark', x: 502, y: 100 },
+      { kind: 'collectible', variant: 'note', x: 556, y: 96 }
     ]
   },
   moonlight_crown_cross: {
     id: 'moonlight_crown_cross',
     label: 'Moonlight Crown Cross',
     family: 'tension',
-    spacingAfter: 612,
+    spacingAfter: 600,
+    // UNDER, JUMP, UNDER: duck a crown, jump a shard, duck a crown. Every
+    // collectible near a crown is grounded so nothing baits a jump up.
     items: [
-      { kind: 'collectible', variant: 'spark', x: 84, y: 64 },
-      { kind: 'hazard', variant: 'crown', x: 138, y: 198 },
-      { kind: 'collectible', variant: 'note', x: 190, y: 112 },
-      { kind: 'hazard', variant: 'shard', x: 252, y: 18 },
-      { kind: 'collectible', variant: 'brush', x: 320, y: 146 },
-      { kind: 'hazard', variant: 'mirror', x: 374, y: 170 },
-      { kind: 'collectible', variant: 'note', x: 436, y: 126 },
-      { kind: 'hazard', variant: 'crown', x: 506, y: 206 },
-      { kind: 'collectible', variant: 'spark', x: 556, y: 88 }
+      { kind: 'collectible', variant: 'spark', x: 84, y: 96 },
+      { kind: 'hazard', variant: 'crown', x: 150, y: 198 },
+      { kind: 'collectible', variant: 'note', x: 214, y: 104 },
+      { kind: 'hazard', variant: 'shard', x: 286, y: 18 },
+      { kind: 'collectible', variant: 'brush', x: 356, y: 100 },
+      { kind: 'hazard', variant: 'crown', x: 424, y: 198 },
+      { kind: 'collectible', variant: 'spark', x: 486, y: 100 },
+      { kind: 'collectible', variant: 'note', x: 544, y: 96 }
     ]
   },
   moonlight_reflect_gate: {
     id: 'moonlight_reflect_gate',
     label: 'Moonlight Reflect Gate',
     family: 'tension',
-    spacingAfter: 626,
+    spacingAfter: 616,
+    // JUMP, UNDER, JUMP: jump a shard, run under an overhead mirror collecting
+    // the low line, then jump a shard.
     items: [
       { kind: 'collectible', variant: 'spark', x: 88, y: 60 },
-      { kind: 'hazard', variant: 'mirror', x: 154, y: 104 },
-      { kind: 'collectible', variant: 'note', x: 210, y: 72 },
-      { kind: 'collectible', variant: 'brush', x: 260, y: 122 },
-      { kind: 'hazard', variant: 'shard', x: 326, y: 18 },
-      { kind: 'collectible', variant: 'spark', x: 384, y: 156 },
-      { kind: 'hazard', variant: 'mirror', x: 438, y: 172 },
-      { kind: 'collectible', variant: 'note', x: 500, y: 124 },
-      { kind: 'collectible', variant: 'brush', x: 558, y: 86 }
+      { kind: 'hazard', variant: 'shard', x: 154, y: 18 },
+      { kind: 'collectible', variant: 'note', x: 224, y: 112 },
+      { kind: 'collectible', variant: 'note', x: 290, y: 100 },
+      { kind: 'hazard', variant: 'mirror', x: 358, y: 172 },
+      { kind: 'collectible', variant: 'brush', x: 424, y: 100 },
+      { kind: 'hazard', variant: 'shard', x: 496, y: 18 },
+      { kind: 'collectible', variant: 'spark', x: 558, y: 112 }
     ]
   },
   moonlight_glass_ladder: {
     id: 'moonlight_glass_ladder',
     label: 'Moonlight Glass Ladder',
     family: 'tension',
-    spacingAfter: 636,
+    spacingAfter: 640,
+    // PLATFORM ROUTE: jump the shard, double-jump the ledge to collect the high
+    // line, drop and collect. No overhead hazard after the ledge.
     items: [
       { kind: 'hazard', variant: 'shard', x: 130, y: 18 },
-      { kind: 'collectible', variant: 'spark', x: 166, y: 62 },
-      { kind: 'collectible', variant: 'note', x: 208, y: 96 },
-      { kind: 'collectible', variant: 'brush', x: 258, y: 136 },
-      { kind: 'hazard', variant: 'mirror', x: 268, y: 150 },
-      { kind: 'platform', variant: 'ledge', x: 404, y: 190, width: 190 },
-      { kind: 'collectible', variant: 'spark', x: 352, y: 178 },
-      { kind: 'collectible', variant: 'note', x: 406, y: 214 },
-      { kind: 'collectible', variant: 'brush', x: 452, y: 196 },
-      { kind: 'collectible', variant: 'note', x: 500, y: 160 },
-      { kind: 'hazard', variant: 'crown', x: 548, y: 204 },
-      { kind: 'collectible', variant: 'brush', x: 560, y: 118 }
+      { kind: 'collectible', variant: 'spark', x: 176, y: 96 },
+      { kind: 'collectible', variant: 'note', x: 224, y: 104 },
+      { kind: 'platform', variant: 'ledge', x: 392, y: 180, width: 190 },
+      { kind: 'collectible', variant: 'spark', x: 348, y: 176 },
+      { kind: 'collectible', variant: 'note', x: 400, y: 210 },
+      { kind: 'collectible', variant: 'brush', x: 452, y: 188 },
+      { kind: 'collectible', variant: 'note', x: 512, y: 130 },
+      { kind: 'collectible', variant: 'spark', x: 560, y: 100 }
     ]
   },
   moonlight_fork: {
     id: 'moonlight_fork',
     label: 'Moonlight Fork',
     family: 'tension',
-    spacingAfter: 644,
+    spacingAfter: 616,
+    // JUMP, UNDER, UNDER: jump a shard, then run under an overhead mirror and a
+    // crown, collecting the low line between them.
     items: [
-      { kind: 'collectible', variant: 'note', x: 94, y: 88 },
-      { kind: 'hazard', variant: 'shard', x: 152, y: 18 },
-      { kind: 'collectible', variant: 'spark', x: 214, y: 124 },
-      { kind: 'hazard', variant: 'mirror', x: 264, y: 144 },
-      { kind: 'collectible', variant: 'brush', x: 318, y: 100 },
-      { kind: 'hazard', variant: 'crown', x: 382, y: 194 },
-      { kind: 'collectible', variant: 'spark', x: 436, y: 158 },
-      { kind: 'hazard', variant: 'mirror', x: 494, y: 118 },
-      { kind: 'collectible', variant: 'note', x: 552, y: 82 }
+      { kind: 'collectible', variant: 'note', x: 94, y: 96 },
+      { kind: 'hazard', variant: 'shard', x: 156, y: 18 },
+      { kind: 'collectible', variant: 'spark', x: 226, y: 112 },
+      { kind: 'collectible', variant: 'note', x: 296, y: 100 },
+      { kind: 'hazard', variant: 'mirror', x: 366, y: 172 },
+      { kind: 'collectible', variant: 'brush', x: 432, y: 100 },
+      { kind: 'hazard', variant: 'crown', x: 502, y: 198 },
+      { kind: 'collectible', variant: 'spark', x: 558, y: 96 }
     ]
   },
   moonlight_crescent: {
     id: 'moonlight_crescent',
     label: 'Moonlight Crescent',
     family: 'tension',
-    spacingAfter: 656,
+    spacingAfter: 648,
+    // Hardest rotation phrase — JUMP, UNDER, JUMP: jump a shard, run under the
+    // crown collecting the low line, then jump a shard.
     items: [
       { kind: 'collectible', variant: 'spark', x: 86, y: 60 },
-      { kind: 'hazard', variant: 'mirror', x: 148, y: 120 },
-      { kind: 'collectible', variant: 'note', x: 202, y: 164 },
-      { kind: 'collectible', variant: 'brush', x: 252, y: 194 },
-      { kind: 'hazard', variant: 'crown', x: 316, y: 210 },
-      { kind: 'collectible', variant: 'note', x: 374, y: 176 },
-      { kind: 'hazard', variant: 'shard', x: 438, y: 18 },
-      { kind: 'collectible', variant: 'spark', x: 494, y: 132 },
-      { kind: 'collectible', variant: 'brush', x: 548, y: 92 }
+      { kind: 'hazard', variant: 'shard', x: 150, y: 18 },
+      { kind: 'collectible', variant: 'note', x: 220, y: 112 },
+      { kind: 'collectible', variant: 'brush', x: 290, y: 100 },
+      { kind: 'hazard', variant: 'crown', x: 360, y: 198 },
+      { kind: 'collectible', variant: 'note', x: 424, y: 104 },
+      { kind: 'hazard', variant: 'shard', x: 496, y: 18 },
+      { kind: 'collectible', variant: 'spark', x: 560, y: 112 }
     ]
   },
   moonlight_recovery_glint: {
@@ -291,7 +317,7 @@ export const journeyStages: Record<JourneyStageKey, JourneyStageDefinition> = {
       eyebrow: 'Nivel 1',
       title: 'Wounded Planet',
       framing: 'Entra en el planeta herido.',
-      detail: 'Las notas abren camino.',
+      detail: 'Recoge las notas de luz y cúralo.',
       cta: 'Entrar',
       primaryColor: 0x90e6b7,
       accentColor: 0xe9ffaf,
@@ -336,7 +362,7 @@ export const journeyStages: Record<JourneyStageKey, JourneyStageDefinition> = {
       eyebrow: 'Nivel 2',
       title: 'Moonlight Mountain',
       framing: 'La montaña devuelve reflejos.',
-      detail: 'La ruta cambia con la luz.',
+      detail: 'Salta los reflejos y sigue la luz.',
       cta: 'Seguir',
       primaryColor: 0x95c5d8,
       accentColor: 0xcef2ff,
@@ -357,6 +383,10 @@ export const journeyStages: Record<JourneyStageKey, JourneyStageDefinition> = {
     beatGuidance: 'Brillan con cada nota.',
     surfaceGuidance: 'La luna abre camino.',
     runner: {
+      // Slightly slower than the first world for fair reaction time: the
+      // moonlight phrases are denser, so 8% more travel time keeps every
+      // obstacle readable without making the stage feel sluggish.
+      speedMultiplier: 0.92,
       phrases: moonlightPhrases,
       initialPhraseId: 'moonlight_intro',
       onboardingSequence: [

@@ -45,7 +45,10 @@ export const runnerConfig = {
   obstacle: {
     pulseLoss: 0.34,
     staggerSeconds: 0.2,
-    invulnerabilitySeconds: 0.82,
+    // Grace window after a hit so the player is not instantly hit again while
+    // still overlapping a hazard cluster (classic platformer i-frames). Reserve
+    // saves and shark/recovery touches extend this further.
+    invulnerabilitySeconds: 1.1,
     speedPenalty: 0.22
   },
   level: {
