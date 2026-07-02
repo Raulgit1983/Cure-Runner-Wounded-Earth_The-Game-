@@ -9,7 +9,9 @@ import { audioCueBus } from '@/game/services/audio/audioCueBus';
 import { localProgressStore } from '@/game/services/persistence/localProgressStore';
 import { runTelemetryStore } from '@/game/services/telemetry/runTelemetryStore';
 import { sessionState } from '@/game/state/sessionState';
+import { BackdropRenderer } from '@/game/systems/backdrop/BackdropRenderer';
 import { EmotionController } from '@/game/systems/emotion/EmotionController';
+import { GuidanceDirector } from '@/game/systems/guidance/GuidanceDirector';
 import { RunnerLoopSystem, type RunnerLoopSnapshot } from '@/game/systems/runner/RunnerLoopSystem';
 
 const SHARK_TEXTURE_KEY = 'shark-friend';
@@ -241,13 +243,10 @@ export class JourneyScene extends Phaser.Scene {
     impact: 0,
     awakening: 0
   };
-  private readonly conduitHeights = [124, 156, 108, 168, 116, 144];
-  private readonly conduitWidths = [18, 24, 16, 22, 20, 26];
-  private readonly conduitOffsets = [12, -8, 18, -14, 10, -4];
   private stageKey: JourneyStageKey = 'wounded-planet';
   private stage: JourneyStageDefinition = journeyStages['wounded-planet'];
 
-  private backdrop!: Phaser.GameObjects.Graphics;
+  private backdropRenderer!: BackdropRenderer;
   private finishScrim!: Phaser.GameObjects.Rectangle;
   private finishGlow!: Phaser.GameObjects.Ellipse;
   private heroShadow!: Phaser.GameObjects.Ellipse;
@@ -279,14 +278,6 @@ export class JourneyScene extends Phaser.Scene {
   private heroRenderScaleX = 1;
   private heroRenderScaleY = 1;
   private activeHeroTextureKey: HeroTextureKey = heroProfile.textureKey;
-  private backdropDistance = 0;
-  private backdropSurfaceProgress = 0;
-  private backdropFinishRevealProgress = 0;
-  private backdropEnvironmentLevel = 0;
-  private lastBackdropRenderDistance = Number.NaN;
-  private lastBackdropRenderSurface = Number.NaN;
-  private lastBackdropRenderFinish = Number.NaN;
-  private lastBackdropRenderLevel = Number.NaN;
   private lastDebugEmit = 0;
   private finishPulse = 0;
   private finishResolved = false;
@@ -308,23 +299,14 @@ export class JourneyScene extends Phaser.Scene {
   private sharkBaseY = 210;
   private sharkActive = false;
   private sharkTagged = false;
+  // Grace to apply when the first shark-rescue discovery beat resolves, so it
+  // starts after the run resumes rather than being spent while time is frozen.
+  private pendingSharkGrace = 0;
   private lastGuidanceAt = -9999;
   private guidanceIndex = 0;
   private sharkGuidanceIndex = 0;
   private lastSeenPhraseId = '';
-  private surfaceGuidanceShown = false;
-  private moonlightIntroGuidanceShown = false;
-  private moonlightBeatGuidanceShown = false;
-  private firstJumpGuidanceShown = false;
-  private doubleJumpHintShown = false;
-  private upperRouteHintShown = false;
-  private firstCollectGuidanceShown = false;
-  private firstHitGuidanceShown = false;
-  private reserveGuidanceShown = false;
-  private reserveFillBeatShown = false;
-  private reserveSpentGuidanceShown = false;
-  private sharkHelpGuidanceShown = false;
-  private sharkBenefitGuidanceShown = false;
+  private readonly guidance = new GuidanceDirector();
   private activeDiscoveryBeatId: DiscoveryBeatId | null = null;
   private queuedDiscoveryBeatId: DiscoveryBeatId | null = null;
   private offAudioCue?: () => void;
@@ -360,14 +342,6 @@ export class JourneyScene extends Phaser.Scene {
     const heroX = runnerConfig.hero.screenX;
     const width = journeyConfig.logicalSize.width;
 
-    this.backdropDistance = 0;
-    this.backdropSurfaceProgress = 0;
-    this.backdropFinishRevealProgress = 0;
-    this.backdropEnvironmentLevel = sessionState.snapshot().displayLevel;
-    this.lastBackdropRenderDistance = Number.NaN;
-    this.lastBackdropRenderSurface = Number.NaN;
-    this.lastBackdropRenderFinish = Number.NaN;
-    this.lastBackdropRenderLevel = Number.NaN;
     this.finishPulse = 0;
     this.finishResolved = false;
     this.continueResolved = false;
@@ -385,23 +359,12 @@ export class JourneyScene extends Phaser.Scene {
     this.sharkCooldown = 3.8;
     this.sharkActive = false;
     this.sharkTagged = false;
+    this.pendingSharkGrace = 0;
     this.lastGuidanceAt = -9999;
     this.guidanceIndex = 0;
     this.sharkGuidanceIndex = 0;
     this.lastSeenPhraseId = '';
-    this.surfaceGuidanceShown = false;
-    this.moonlightIntroGuidanceShown = false;
-    this.moonlightBeatGuidanceShown = false;
-    this.firstJumpGuidanceShown = false;
-    this.doubleJumpHintShown = false;
-    this.upperRouteHintShown = false;
-    this.firstCollectGuidanceShown = false;
-    this.firstHitGuidanceShown = false;
-    this.reserveGuidanceShown = false;
-    this.reserveFillBeatShown = false;
-    this.reserveSpentGuidanceShown = false;
-    this.sharkHelpGuidanceShown = false;
-    this.sharkBenefitGuidanceShown = false;
+    this.guidance.reset();
     this.activeDiscoveryBeatId = null;
     this.queuedDiscoveryBeatId = null;
     this.pauseOpen = false;
@@ -411,7 +374,11 @@ export class JourneyScene extends Phaser.Scene {
     this.emitVictoryState(false);
     this.emitFocusMode(false);
     this.emitUiScreen('playing');
-    this.backdrop = this.add.graphics().setDepth(0);
+    this.backdropRenderer = new BackdropRenderer(
+      this,
+      this.stage.backdropKind,
+      sessionState.snapshot().displayLevel
+    );
     this.finishScrim = this.add
       .rectangle(width * 0.5, journeyConfig.logicalSize.height * 0.5, width, journeyConfig.logicalSize.height, 0x0a0d12, 0)
       .setDepth(5.8);
@@ -508,10 +475,9 @@ export class JourneyScene extends Phaser.Scene {
     runTelemetryStore.beginRun();
     this.runnerLoop = new RunnerLoopSystem(this, this.showDebug, this.stage);
     this.bindAudioFeedback();
-    this.renderBackdrop(this.emotionController.getMood(sessionState.snapshot().displayLevel), 0, 0, 0);
+    this.backdropRenderer.renderInitial(this.time.now);
 
-    if (this.stage.introGuidance && !this.moonlightIntroGuidanceShown) {
-      this.moonlightIntroGuidanceShown = true;
+    if (this.stage.introGuidance && this.guidance.showOnce('stage_intro')) {
       this.time.delayedCall(420, () => {
         if (!this.failResolved && !this.finishResolved) {
           this.emitGuidanceLine(this.stage.introGuidance!, 2100, this.time.now);
@@ -529,6 +495,14 @@ export class JourneyScene extends Phaser.Scene {
 
   update(time: number, delta: number) {
     const deltaSeconds = delta / 1000;
+
+    // Pause is a hard freeze: skip ALL gameplay and animated systems so the
+    // runner, backdrop, shark, and finish sequence stop together behind the
+    // overlay. Overlay tweens run on the tween manager, so the panel still
+    // animates; resuming simply continues from the frozen frame.
+    if (this.pauseOpen) {
+      return;
+    }
 
     sessionState.coolDown(deltaSeconds);
 
@@ -574,44 +548,16 @@ export class JourneyScene extends Phaser.Scene {
       1
     );
     const renderMood = this.emotionController.getMood(environmentLevel);
-    const backdropFollow =
-      1 - Math.exp(-deltaSeconds * journeyConfig.backdrop.followSharpness);
 
-    this.backdropDistance = Phaser.Math.Linear(
-      this.backdropDistance,
-      loopSnapshot.distanceTravelled,
-      backdropFollow
-    );
-    this.backdropSurfaceProgress = Phaser.Math.Linear(
-      this.backdropSurfaceProgress,
-      loopSnapshot.surfaceProgress,
-      backdropFollow
-    );
-    this.backdropFinishRevealProgress = Phaser.Math.Linear(
-      this.backdropFinishRevealProgress,
-      loopSnapshot.finishRevealProgress,
-      backdropFollow
-    );
-    this.backdropEnvironmentLevel = Phaser.Math.Linear(
-      this.backdropEnvironmentLevel,
+    this.backdropRenderer.update(deltaSeconds, time, {
+      distanceTravelled: loopSnapshot.distanceTravelled,
+      surfaceProgress: loopSnapshot.surfaceProgress,
+      finishRevealProgress: loopSnapshot.finishRevealProgress,
       environmentLevel,
-      backdropFollow
-    );
-
-    if (this.shouldRenderBackdrop()) {
-      const renderMood = this.emotionController.getMood(this.backdropEnvironmentLevel);
-
-      this.renderBackdrop(
-        renderMood,
-        this.backdropDistance,
-        this.backdropSurfaceProgress,
-        this.backdropFinishRevealProgress
-      );
-      this.lastBackdropRenderDistance = this.backdropDistance;
-      this.lastBackdropRenderSurface = this.backdropSurfaceProgress;
-      this.lastBackdropRenderFinish = this.backdropFinishRevealProgress;
-      this.lastBackdropRenderLevel = this.backdropEnvironmentLevel;
-    }
+      collectFeedback: this.feedback.collect,
+      chainFeedback: this.feedback.chain,
+      awakeningFeedback: this.feedback.awakening
+    });
 
     if (!this.failResolved && !this.finishResolved && !this.activeDiscoveryBeatId) {
       this.updateSharkEvent(time, deltaSeconds, loopSnapshot);
@@ -644,10 +590,11 @@ export class JourneyScene extends Phaser.Scene {
           Phaser.Math.Clamp((this.finishSequence - FINISH_CONTACT_BEAT_AT) / 0.18, 0, 1)
         )
       : 0;
-    const victoryBounce =
-      this.finishResolved
-        ? Math.sin(this.finishSequence * Math.PI) * (1 - this.finishSequence * 0.28) * 7
-        : 0;
+    // The hero now glides cleanly to the note and touches it before any
+    // celebration. The previous pre-contact hop (a sine bounce peaking near
+    // mid-sequence, just before the contact beat) read as an awkward jump; the
+    // gentle post-contact float below carries the "awakening" rise instead.
+    const victoryBounce = 0;
     const heroScale =
       this.baseHeroScale *
       renderMood.heroScale *
@@ -676,11 +623,14 @@ export class JourneyScene extends Phaser.Scene {
       loopSnapshot.surfaceProgress * 6 -
       victoryBounce +
       HERO_FOOTING_VISUAL_OFFSET_Y;
-    const celebrationFloatX = finishFloatProgress > 0 ? Math.sin(time * 0.0032) * 2.2 : 0;
+    // Scale the whole celebration float by finishFloatProgress so the gentle
+    // post-contact drift eases in from zero. Previously the sin/cos terms were
+    // already at full amplitude the instant the contact beat began, which read
+    // as a small snap/hop; now the hero touches the note and rises smoothly.
+    const celebrationFloatX = finishFloatProgress * Math.sin(time * 0.0032) * 2.2;
     const celebrationFloatY =
-      finishFloatProgress > 0
-        ? Math.sin(time * 0.0041) * 2.8 + Math.cos(time * 0.0026) * 1.6 - finishFloatProgress * FINISH_POST_CONTACT_FLOAT_RISE
-        : 0;
+      finishFloatProgress *
+      (Math.sin(time * 0.0041) * 2.8 + Math.cos(time * 0.0026) * 1.6 - FINISH_POST_CONTACT_FLOAT_RISE);
     const heroDisplayX = this.finishResolved
       ? Phaser.Math.Linear(heroBaseX, FINISH_HERO_REACH_X, finishReach) + celebrationFloatX
       : heroBaseX;
@@ -689,6 +639,12 @@ export class JourneyScene extends Phaser.Scene {
       : heroBaseY;
 
     this.hero.setPosition(heroDisplayX, heroDisplayY).setScale(this.heroRenderScaleX, this.heroRenderScaleY);
+
+    // Subtle i-frame blink during the grace window so the player can read that
+    // they are briefly safe after a hit/recovery. Never during finish/fail.
+    const inGraceWindow =
+      !this.finishResolved && !this.failResolved && loopSnapshot.invulnerabilitySeconds > 0;
+    this.hero.setAlpha(inGraceWindow ? 0.6 + 0.4 * Math.abs(Math.sin(time * 0.022)) : 1);
 
     this.hero.rotation = Phaser.Math.Linear(
       this.hero.rotation,
@@ -743,436 +699,12 @@ export class JourneyScene extends Phaser.Scene {
     }
   }
 
-  private shouldRenderBackdrop() {
-    if (!Number.isFinite(this.lastBackdropRenderDistance)) {
-      return true;
-    }
-
-    return (
-      Math.abs(this.backdropDistance - this.lastBackdropRenderDistance) >=
-        journeyConfig.backdrop.redrawDistancePx ||
-      Math.abs(this.backdropSurfaceProgress - this.lastBackdropRenderSurface) >=
-        journeyConfig.backdrop.redrawProgressStep ||
-      Math.abs(this.backdropFinishRevealProgress - this.lastBackdropRenderFinish) >=
-        journeyConfig.backdrop.redrawProgressStep ||
-      Math.abs(this.backdropEnvironmentLevel - this.lastBackdropRenderLevel) >=
-        journeyConfig.backdrop.redrawEmotionStep
-    );
-  }
-
-  private mixStageColor(from: number, to: number, value: number) {
-    const start = Phaser.Display.Color.ValueToColor(from);
-    const end = Phaser.Display.Color.ValueToColor(to);
-    const mixed = Phaser.Display.Color.Interpolate.ColorWithColor(
-      start,
-      end,
-      100,
-      Math.round(Phaser.Math.Clamp(value, 0, 1) * 100)
-    );
-
-    return Phaser.Display.Color.GetColor(mixed.r, mixed.g, mixed.b);
-  }
-
-  private renderMoonlightBackdrop(
-    mood: ReturnType<EmotionController['getMood']>,
-    distanceTravelled: number,
-    surfaceProgress: number,
-    finishRevealProgress: number
-  ) {
-    const width = journeyConfig.logicalSize.width;
-    const height = journeyConfig.logicalSize.height;
-    const floorY = runnerConfig.visual.groundLineY;
-    const time = this.time.now;
-    const climb = Phaser.Math.Clamp(surfaceProgress * 0.84 + finishRevealProgress * 0.18, 0, 1);
-    const beatGlow = Phaser.Math.Clamp(
-      this.feedback.collect * 0.48 + this.feedback.chain * 0.68 + this.feedback.awakening * 0.24,
-      0,
-      1
-    );
-    const farOffset = -((distanceTravelled * 0.12) % 136);
-    const midOffset = -((distanceTravelled * 0.22) % 118);
-    const nearOffset = -((distanceTravelled * 0.36) % 94);
-
-    // --- Sky ---
-    const skyTop = this.mixStageColor(0x08111d, 0x12253c, climb * 0.72 + beatGlow * 0.06);
-    const skyBottom = this.mixStageColor(0x162134, 0x234666, climb * 0.7 + beatGlow * 0.08);
-    this.backdrop.clear();
-    this.backdrop.fillGradientStyle(skyTop, skyTop, skyBottom, skyBottom, 1, 1, 1, 1);
-    this.backdrop.fillRect(0, 0, width, height);
-
-    // --- Atmospheric haze ---
-    const haze = this.mixStageColor(0x7ca0ba, 0xbdefff, climb * 0.46 + beatGlow * 0.28);
-    this.backdrop.fillStyle(haze, 0.12 + climb * 0.06);
-    this.backdrop.fillEllipse(width * 0.22, height * 0.2, 178, 132);
-    this.backdrop.fillEllipse(width * 0.82, height * 0.22, 198, 152);
-    this.backdrop.fillEllipse(width * 0.5, height * 0.32, 246, 178);
-
-    // --- Moon (load-bearing: massive, centered behind peak) ---
-    const moonX = width * 0.54;
-    const moonY = 182;
-    const moonSize = 280;
-    const moonGlow = this.mixStageColor(0xfff3d4, 0xf8fff0, climb * 0.18 + beatGlow * 0.24);
-
-    // Outer atmospheric halo
-    this.backdrop.fillStyle(moonGlow, 0.06 + beatGlow * 0.03);
-    this.backdrop.fillEllipse(moonX, moonY, moonSize + 108, moonSize + 108);
-    // Inner halo
-    this.backdrop.fillStyle(0xffffff, 0.08 + beatGlow * 0.04);
-    this.backdrop.fillEllipse(moonX, moonY, moonSize + 52, moonSize + 52);
-    // Moon body
-    this.backdrop.fillStyle(moonGlow, 0.94);
-    this.backdrop.fillEllipse(moonX, moonY, moonSize, moonSize);
-    // Craters
-    this.backdrop.fillStyle(0xd6c7a2, 0.14);
-    this.backdrop.fillEllipse(moonX - 34, moonY - 38, 38, 30);
-    this.backdrop.fillEllipse(moonX + 28, moonY + 22, 30, 24);
-    this.backdrop.fillEllipse(moonX - 8, moonY + 48, 20, 14);
-    this.backdrop.fillEllipse(moonX + 48, moonY - 16, 16, 12);
-
-    // --- Background crystal hints (behind mountain) ---
-    const crystalFill = this.mixStageColor(0xa8e1d8, 0xe7fbff, climb * 0.54 + beatGlow * 0.34);
-    const crystalFillSoft = this.mixStageColor(0x8dcfbf, 0xcff8ef, climb * 0.48 + beatGlow * 0.3);
-    const crystalEdge = this.mixStageColor(0x4e7e74, 0x93efdf, climb * 0.3 + beatGlow * 0.34);
-
-    this.backdrop.fillStyle(crystalFillSoft, 0.18 + climb * 0.06);
-    for (let i = 0; i < 5; i += 1) {
-      const bx = 42 + i * 72 + farOffset * 0.06;
-      const bh = 62 + (i % 3) * 18;
-      this.backdrop.fillTriangle(bx, floorY + 6, bx + 14, floorY - bh, bx + 30, floorY + 6);
-    }
-
-    // --- Mountain silhouette (load-bearing: one central peak + flanking ridges) ---
-    const mountainShadow = this.mixStageColor(0x111925, 0x223240, climb * 0.6);
-    const mountainBase = this.mixStageColor(0x1a2430, 0x2e4455, climb * 0.76);
-    const mountainEdge = this.mixStageColor(0x334b5f, 0x6b9ab0, climb * 0.34 + beatGlow * 0.18);
-
-    // Shadow layer (slightly wider, behind)
-    this.backdrop.fillStyle(mountainShadow, 0.96);
-    this.backdrop.fillTriangle(
-      56 + farOffset * 0.06, floorY + 16,
-      width * 0.52, 82,
-      width - 32 + farOffset * 0.06, floorY + 16
-    );
-
-    // Main central peak
-    this.backdrop.fillStyle(mountainBase, 0.98);
-    this.backdrop.fillTriangle(
-      86 + farOffset * 0.08, floorY + 14,
-      width * 0.54, 98,
-      width - 56 + farOffset * 0.08, floorY + 14
-    );
-
-    // Left flank ridge
-    this.backdrop.fillStyle(mountainShadow, 0.92);
-    this.backdrop.fillTriangle(
-      14 + farOffset * 0.04, floorY + 12,
-      92, 194,
-      178 + farOffset * 0.04, floorY + 12
-    );
-
-    // Right flank ridge
-    this.backdrop.fillTriangle(
-      width - 148 + farOffset * 0.05, floorY + 12,
-      width - 72, 208,
-      width + 14 + farOffset * 0.05, floorY + 12
-    );
-
-    // Mountain edge highlights (ridgeline light)
-    this.backdrop.lineStyle(3, mountainEdge, 0.26 + climb * 0.08);
-    this.backdrop.beginPath();
-    this.backdrop.moveTo(118 + farOffset * 0.08, floorY + 6);
-    this.backdrop.lineTo(width * 0.54, 98);
-    this.backdrop.lineTo(width - 88 + farOffset * 0.08, floorY + 8);
-    this.backdrop.strokePath();
-
-    // --- Mid-layer distant crystal cliffs ---
-    this.backdrop.fillStyle(this.mixStageColor(0x273648, 0x36546b, climb * 0.5), 0.52);
-    for (let i = 0; i < 7; i += 1) {
-      const x = midOffset + i * 62;
-      const h = 84 + (i % 3) * 22;
-      this.backdrop.fillTriangle(x, floorY + 12, x + 24, floorY - h, x + 52, floorY + 12);
-    }
-
-    // --- Foreground crystal field (load-bearing: dense, 2-tier, staggered glint) ---
-    const mirrorLine = this.mixStageColor(0xe9ffff, 0xffffff, beatGlow * 0.58 + finishRevealProgress * 0.2);
-
-    // Tier A: Large crystals
-    for (let i = 0; i < 7; i += 1) {
-      const x = nearOffset + i * 54;
-      const h = 128 + (i % 3) * 32;
-      const w = 38 + (i % 3) * 6;
-      const fill = i % 2 === 0 ? crystalFill : crystalFillSoft;
-      const glintPhase = Math.sin(time * 0.003 + i * 1.4) * 0.5 + 0.5;
-      const crystalAlpha = 0.74 + climb * 0.16 + beatGlow * glintPhase * 0.12;
-
-      this.backdrop.fillStyle(fill, crystalAlpha);
-      this.backdrop.fillTriangle(x, floorY + 14, x + w * 0.5, floorY - h, x + w, floorY + 14);
-
-      // Internal edge line
-      this.backdrop.lineStyle(2, crystalEdge, 0.38 + beatGlow * glintPhase * 0.22);
-      this.backdrop.beginPath();
-      this.backdrop.moveTo(x + w * 0.5, floorY - h);
-      this.backdrop.lineTo(x + w * 0.22, floorY + 6);
-      this.backdrop.strokePath();
-
-      // Mirror highlight (staggered glint)
-      this.backdrop.lineStyle(2, mirrorLine, 0.1 + beatGlow * glintPhase * 0.28);
-      this.backdrop.beginPath();
-      this.backdrop.moveTo(x + w * 0.56, floorY - h + 16);
-      this.backdrop.lineTo(x + w * 0.78, floorY - h * 0.4);
-      this.backdrop.strokePath();
-    }
-
-    // Tier B: Smaller fill crystals (between the large ones)
-    for (let i = 0; i < 8; i += 1) {
-      const x = nearOffset + i * 54 + 22;
-      const h = 72 + (i % 4) * 18;
-      const w = 24 + (i % 2) * 6;
-      const glintPhase = Math.sin(time * 0.003 + i * 1.8 + 0.7) * 0.5 + 0.5;
-      const fillAlpha = 0.52 + climb * 0.12 + beatGlow * glintPhase * 0.08;
-
-      this.backdrop.fillStyle(crystalFillSoft, fillAlpha);
-      this.backdrop.fillTriangle(x, floorY + 14, x + w * 0.5, floorY - h, x + w, floorY + 14);
-
-      this.backdrop.lineStyle(1, crystalEdge, 0.24 + beatGlow * glintPhase * 0.16);
-      this.backdrop.beginPath();
-      this.backdrop.moveTo(x + w * 0.48, floorY - h);
-      this.backdrop.lineTo(x + w * 0.26, floorY - h * 0.3);
-      this.backdrop.strokePath();
-    }
-
-    // --- Ground plane ---
-    this.backdrop.fillStyle(this.mixStageColor(0x172536, 0x1e3144, climb * 0.42), 0.94);
-    this.backdrop.fillRect(-20, floorY, width + 40, height - floorY + 24);
-
-    // Ground edge line
-    this.backdrop.lineStyle(4, crystalEdge, 0.34 + beatGlow * 0.18);
-    this.backdrop.beginPath();
-    this.backdrop.moveTo(0, floorY + 8);
-    this.backdrop.lineTo(width * 0.1, floorY + 2);
-    this.backdrop.lineTo(width * 0.22, floorY + 10);
-    this.backdrop.lineTo(width * 0.38, floorY + 4);
-    this.backdrop.lineTo(width * 0.54, floorY + 14);
-    this.backdrop.lineTo(width * 0.72, floorY + 6);
-    this.backdrop.lineTo(width * 0.88, floorY + 12);
-    this.backdrop.lineTo(width, floorY + 4);
-    this.backdrop.strokePath();
-
-    // Ground haze particles
-    this.backdrop.fillStyle(haze, 0.07 + beatGlow * 0.05);
-    for (let i = 0; i < 6; i += 1) {
-      this.backdrop.fillEllipse(32 + i * 58, floorY - 12 - (i % 2) * 10, 42, 12);
-    }
-
-    // Small crystal tips above haze
-    this.backdrop.lineStyle(2, mirrorLine, 0.1 + beatGlow * 0.18);
-    for (let i = 0; i < 7; i += 1) {
-      const x = nearOffset + i * 56 + 10;
-      const peakY = floorY - 88 - (i % 3) * 26;
-      this.backdrop.beginPath();
-      this.backdrop.moveTo(x, peakY + 12);
-      this.backdrop.lineTo(x + 8, peakY - 10);
-      this.backdrop.lineTo(x + 18, peakY + 4);
-      this.backdrop.strokePath();
-    }
-
-    // Moonlight bloom near horizon
-    this.backdrop.fillStyle(0xf5fff4, 0.07 + beatGlow * 0.1 + finishRevealProgress * 0.05);
-    this.backdrop.fillEllipse(width * 0.54, floorY - 178, 178 + beatGlow * 26, 68 + beatGlow * 12);
-    this.backdrop.fillStyle(mood.auraColor, 0.04 + beatGlow * 0.06);
-    this.backdrop.fillEllipse(width * 0.72, floorY - 124, 134, 54);
-  }
-
-  private renderBackdrop(
-    mood: ReturnType<EmotionController['getMood']>,
-    distanceTravelled: number,
-    surfaceProgress: number,
-    finishRevealProgress: number
-  ) {
-    if (this.stage.backdropKind === 'moonlight-mountain') {
-      this.renderMoonlightBackdrop(mood, distanceTravelled, surfaceProgress, finishRevealProgress);
-      return;
-    }
-
-    const width = journeyConfig.logicalSize.width;
-    const height = journeyConfig.logicalSize.height;
-    const floorY = runnerConfig.visual.groundLineY;
-    const interiorDarkness = Phaser.Math.Clamp(
-      1 - surfaceProgress * 1.2 - finishRevealProgress * 0.85,
-      0,
-      1
-    );
-    const farOffset = -((distanceTravelled * 0.18) % 88);
-    const midOffset = -((distanceTravelled * 0.34) % 92);
-    const conduitOffset = -((distanceTravelled * 0.58) % 64);
-    const pulseOffset = -((distanceTravelled * 0.88) % 54);
-    const hubX = width * 0.52 + farOffset * 0.16;
-    const hubY = height * 0.31;
-    const hubAlpha = 0.14 - surfaceProgress * 0.04;
-
-    this.backdrop.clear();
-    this.backdrop.fillGradientStyle(
-      mood.gradientTop,
-      mood.gradientTop,
-      mood.gradientBottom,
-      mood.gradientBottom,
-      1,
-      1,
-      1,
-      1
-    );
-    this.backdrop.fillRect(0, 0, width, height);
-
-    if (interiorDarkness > 0.01) {
-      this.backdrop.fillStyle(0x04070b, 0.18 * interiorDarkness);
-      this.backdrop.fillRect(0, 0, width, height);
-      this.backdrop.fillStyle(0x091017, 0.1 * interiorDarkness);
-      this.backdrop.fillEllipse(width * 0.26, height * 0.28, 208, 168);
-      this.backdrop.fillEllipse(width * 0.74, height * 0.34, 244, 196);
-    }
-
-    this.backdrop.fillStyle(mood.hazeColor, 0.08 + surfaceProgress * 0.03);
-    this.backdrop.fillEllipse(width * 0.22, height * 0.24, 170, 138);
-    this.backdrop.fillEllipse(width * 0.81, height * 0.2, 208, 156);
-    this.backdrop.fillEllipse(width * 0.54, height * 0.34, 244, 188);
-
-    this.backdrop.lineStyle(4, mood.floorLineColor, hubAlpha);
-    for (let index = 0; index < 6; index += 1) {
-      const angle = -1.52 + index * 0.58 + (index % 2 === 0 ? 0.08 : -0.06);
-      const length = 58 + (index % 3) * 22;
-      const jointX = hubX + Math.cos(angle) * length;
-      const jointY = hubY + Math.sin(angle) * length;
-
-      this.backdrop.beginPath();
-      this.backdrop.moveTo(hubX, hubY);
-      this.backdrop.lineTo(jointX, jointY);
-      this.backdrop.lineTo(jointX + (index % 2 === 0 ? 10 : -8), jointY + 14);
-      this.backdrop.strokePath();
-      this.backdrop.fillStyle(mood.floorColor, 0.16);
-      this.backdrop.fillCircle(jointX, jointY, 8 + (index % 2) * 2);
-    }
-
-    this.backdrop.lineStyle(2, mood.markerColor, 0.12 - surfaceProgress * 0.03);
-    this.backdrop.strokeEllipse(hubX, hubY, 58, 58);
-    this.backdrop.fillStyle(mood.markerColor, 0.12);
-    this.backdrop.fillCircle(hubX, hubY, 11);
-
-    this.backdrop.fillStyle(0xf2ffd6, 0.04 + surfaceProgress * 0.18 + finishRevealProgress * 0.24);
-    this.backdrop.fillEllipse(
-      width * 0.98,
-      height * 0.28,
-      170 + finishRevealProgress * 86,
-      304 + surfaceProgress * 144
-    );
-    this.backdrop.fillStyle(mood.auraColor, 0.03 + surfaceProgress * 0.1 + finishRevealProgress * 0.04);
-    this.backdrop.fillRect(width * 0.88, 0, width * 0.18, floorY - 36);
-    this.backdrop.fillStyle(0xfff7dc, 0.018 + finishRevealProgress * 0.06);
-    this.backdrop.fillEllipse(width * 0.92, height * 0.2, 94 + finishRevealProgress * 42, 180);
-
-    this.backdrop.lineStyle(18, mood.floorColor, 0.12);
-    this.backdrop.strokeEllipse(width * 0.28 + farOffset * 0.25, height * 0.38, 230, 292);
-    this.backdrop.strokeEllipse(width * 0.82 + farOffset * 0.1, height * 0.42, 196, 262);
-    this.backdrop.lineStyle(6, mood.markerColor, 0.08);
-    this.backdrop.strokeEllipse(width * 0.53 + farOffset * 0.12, height * 0.26, 138, 176);
-
-    this.backdrop.fillStyle(mood.floorLineColor, 0.16);
-    for (let index = 0; index < 7; index += 1) {
-      const x = farOffset + index * 72;
-      const bodyWidth = this.conduitWidths[index % this.conduitWidths.length]!;
-      const bodyHeight = this.conduitHeights[index % this.conduitHeights.length]!;
-      const neckShift = this.conduitOffsets[index % this.conduitOffsets.length]!;
-      const bodyTop = floorY - 166 - bodyHeight;
-
-      this.backdrop.fillRoundedRect(x, bodyTop, bodyWidth, bodyHeight, 12);
-      this.backdrop.fillCircle(x + bodyWidth * 0.5, bodyTop + 20, 12);
-      this.backdrop.fillCircle(x + bodyWidth * 0.5 + neckShift * 0.25, bodyTop + bodyHeight - 18, 10);
-      this.backdrop.fillRect(x + bodyWidth * 0.32, bodyTop - 18, 6, 22);
-    }
-
-    this.backdrop.fillStyle(mood.floorColor, 0.22);
-    for (let index = 0; index < 6; index += 1) {
-      const x = midOffset + index * 66;
-      const y = floorY - 164 + (index % 3) * 12;
-
-      this.backdrop.fillRoundedRect(x, y, 14, 88, 14);
-      this.backdrop.fillRoundedRect(x + 18, y + 18, 32, 12, 10);
-      this.backdrop.fillCircle(x + 26, y + 24, 14);
-      this.backdrop.fillRoundedRect(x + 38, y + 42, 12, 42, 10);
-      this.backdrop.fillEllipse(x + 24, y + 72, 34, 16);
-    }
-
-    this.backdrop.lineStyle(4, mood.shadowColor, 0.34);
-    for (let index = 0; index < 5; index += 1) {
-      const startX = conduitOffset + index * 86;
-      const offset = index % 2 === 0 ? 12 : -12;
-
-      if (startX > 92) {
-        this.backdrop.beginPath();
-        this.backdrop.moveTo(startX, -10);
-        this.backdrop.lineTo(startX + 16, 72);
-        this.backdrop.lineTo(startX - offset, 144);
-        this.backdrop.lineTo(startX + 10, 220);
-        this.backdrop.strokePath();
-      }
-
-      this.backdrop.beginPath();
-      this.backdrop.moveTo(startX + 28, floorY - 14);
-      this.backdrop.lineTo(startX + 8, floorY - 82);
-      this.backdrop.lineTo(startX + 18 + offset, floorY - 148);
-      this.backdrop.strokePath();
-    }
-
-    this.backdrop.lineStyle(2, mood.auraColor, 0.22);
-    for (let x = pulseOffset - 20; x < width + 40; x += 42) {
-      this.backdrop.beginPath();
-      this.backdrop.moveTo(x, floorY - 36);
-      this.backdrop.lineTo(x + 14, floorY - 64);
-      this.backdrop.lineTo(x + 28, floorY - 44);
-      this.backdrop.strokePath();
-    }
-
-    this.backdrop.fillStyle(mood.floorColor, 0.9);
-    this.backdrop.fillRect(-20, floorY, width + 40, height - floorY + 20);
-
-    this.backdrop.lineStyle(4, mood.floorLineColor, 0.72);
-    this.backdrop.beginPath();
-    this.backdrop.moveTo(0, floorY + 10);
-    this.backdrop.lineTo(width * 0.12, floorY + 4);
-    this.backdrop.lineTo(width * 0.28, floorY + 12);
-    this.backdrop.lineTo(width * 0.46, floorY + 6);
-    this.backdrop.lineTo(width * 0.64, floorY + 16);
-    this.backdrop.lineTo(width * 0.82, floorY + 8);
-    this.backdrop.lineTo(width, floorY + 12);
-
-    this.backdrop.strokePath();
-
-    this.backdrop.fillStyle(mood.hazeColor, 0.14);
-    for (let x = pulseOffset - 24; x < width + 60; x += 58) {
-      this.backdrop.fillEllipse(x, floorY + 12, 52, 14);
-    }
-
-    this.backdrop.lineStyle(2, mood.markerColor, 0.16);
-    for (let x = conduitOffset - 30; x < width + 58; x += 48) {
-      this.backdrop.beginPath();
-      this.backdrop.moveTo(x, floorY - 50);
-      this.backdrop.lineTo(x + 8, floorY - 26);
-      this.backdrop.lineTo(x + 4, floorY - 6);
-      this.backdrop.strokePath();
-    }
-
-    this.backdrop.fillStyle(mood.markerColor, 0.12);
-    for (let x = pulseOffset - 24; x < width + 54; x += 46) {
-      this.backdrop.fillRect(x, floorY + 28, 20, 4);
-    }
-  }
-
   private bindAudioFeedback() {
     this.offAudioCue = audioCueBus.subscribe((event) => {
       if (event.type === 'spark_collect') {
         this.feedback.collect = Math.max(this.feedback.collect, Math.min(1, event.intensity * 0.5));
 
-        if (!this.firstCollectGuidanceShown) {
-          this.firstCollectGuidanceShown = true;
+        if (this.guidance.showOnce('notes_intro')) {
           this.triggerDiscoveryBeat('notes_intro', this.time.now);
         }
       }
@@ -1182,11 +714,10 @@ export class JourneyScene extends Phaser.Scene {
 
         if (
           this.stage.beatGuidance &&
-          !this.moonlightBeatGuidanceShown &&
           !this.failResolved &&
-          !this.finishResolved
+          !this.finishResolved &&
+          this.guidance.showOnce('stage_beat')
         ) {
-          this.moonlightBeatGuidanceShown = true;
           this.emitGuidanceLine(this.stage.beatGuidance, 1800, this.time.now);
         }
       }
@@ -1206,8 +737,7 @@ export class JourneyScene extends Phaser.Scene {
           }
         }
 
-        if (!this.firstHitGuidanceShown && !runFailed) {
-          this.firstHitGuidanceShown = true;
+        if (!runFailed && this.guidance.showOnce('hazard_intro')) {
           this.triggerDiscoveryBeat('hazard_intro', this.time.now);
         }
       }
@@ -1224,8 +754,7 @@ export class JourneyScene extends Phaser.Scene {
         this.feedback.awakening = Math.max(this.feedback.awakening, 0.24);
 
         if (!this.failResolved && !this.finishResolved) {
-          if (!this.reserveFillBeatShown) {
-            this.reserveFillBeatShown = true;
+          if (this.guidance.showOnce('reserve_gain')) {
             this.triggerDiscoveryBeat('reserve_gain', this.time.now);
           } else {
             this.emitGuidanceLine('Reserva lista.', 2000, this.time.now);
@@ -1237,8 +766,7 @@ export class JourneyScene extends Phaser.Scene {
         this.feedback.collect = Math.max(this.feedback.collect, 0.26);
         this.feedback.awakening = Math.max(this.feedback.awakening, 0.14);
 
-        if (!this.reserveSpentGuidanceShown && !this.failResolved && !this.finishResolved) {
-          this.reserveSpentGuidanceShown = true;
+        if (!this.failResolved && !this.finishResolved && this.guidance.showOnce('reserve_spent')) {
           this.triggerDiscoveryBeat('reserve_spent', this.time.now);
         }
       }
@@ -1288,6 +816,9 @@ export class JourneyScene extends Phaser.Scene {
     this.pauseOpen = true;
     this.helpOpen = false;
     this.runnerLoop.setFrozen(true);
+    // Clear any in-flight shark so it does not sit frozen (or "ghost") behind
+    // the pause overlay. It is a periodic helper; the next fly-by re-triggers.
+    this.haltSharkEvent();
     this.emitFocusMode(true);
     this.pauseOverlay.setVisible(true).setAlpha(0.001).setInteractive();
     this.pauseStage.setVisible(true).setAlpha(0).setScale(0.92);
@@ -1841,6 +1372,10 @@ export class JourneyScene extends Phaser.Scene {
 
     // Final level: replay + home instead of a misleading continuation CTA.
     if (!this.stage.nextStage) {
+      // The unused button must be destroyed: createPanelButton() adds it to the
+      // scene at (0,0), so leaving it unparented strands a stray button in the
+      // top-left corner for the whole run.
+      continueButton.destroy();
       replayButton.setPosition(-54, 86);
       homeButton.setPosition(54, 86);
       return this.add.container(x, y, [
@@ -1854,6 +1389,9 @@ export class JourneyScene extends Phaser.Scene {
       ]);
     }
 
+    // Mid-journey: continue + home. Destroy the unused replay button so it does
+    // not linger at the scene origin (see note above).
+    replayButton.destroy();
     continueButton.setPosition(-56, 86);
     homeButton.setPosition(54, 86);
 
@@ -2915,6 +2453,13 @@ export class JourneyScene extends Phaser.Scene {
     if (!nextBeat && !this.failResolved && !this.finishResolved && !this.victoryFrozen) {
       this.runnerLoop.setFrozen(false);
       this.emitFocusMode(false);
+
+      // Start any deferred shark-rescue grace now that the run has resumed, so
+      // the grace window is felt in play rather than ticking down while frozen.
+      if (this.pendingSharkGrace > 0) {
+        this.runnerLoop.grantGrace(this.pendingSharkGrace);
+        this.pendingSharkGrace = 0;
+      }
     }
 
     if (!nextBeat) {
@@ -2956,31 +2501,28 @@ export class JourneyScene extends Phaser.Scene {
 
     if (
       phraseChanged &&
-      !this.firstJumpGuidanceShown &&
       loopSnapshot.currentPhraseId === 'onboarding_jump' &&
-      time - this.lastGuidanceAt > 1400
+      time - this.lastGuidanceAt > 1400 &&
+      this.guidance.showOnce('jump_intro')
     ) {
-      this.firstJumpGuidanceShown = true;
       this.triggerDiscoveryBeat('jump_intro', time);
     }
 
     if (
       phraseChanged &&
-      !this.reserveGuidanceShown &&
       loopSnapshot.currentPhraseId === 'onboarding_reserve' &&
-      time - this.lastGuidanceAt > 1800
+      time - this.lastGuidanceAt > 1800 &&
+      this.guidance.showOnce('reserve_hint')
     ) {
-      this.reserveGuidanceShown = true;
       this.triggerDiscoveryBeat('reserve_hint', time);
     }
 
     if (
       phraseChanged &&
-      !this.upperRouteHintShown &&
       loopSnapshot.currentPhraseId === 'onboarding_upper' &&
-      time - this.lastGuidanceAt > 2200
+      time - this.lastGuidanceAt > 2200 &&
+      this.guidance.showOnce('upper_route_intro')
     ) {
-      this.upperRouteHintShown = true;
       this.triggerDiscoveryBeat('upper_route_intro', time);
     }
 
@@ -2995,12 +2537,11 @@ export class JourneyScene extends Phaser.Scene {
     }
 
     if (
-      !this.surfaceGuidanceShown &&
       this.stage.surfaceGuidance &&
       loopSnapshot.surfaceProgress >= 0.56 &&
-      time - this.lastGuidanceAt > 4200
+      time - this.lastGuidanceAt > 4200 &&
+      this.guidance.showOnce('stage_surface')
     ) {
-      this.surfaceGuidanceShown = true;
       this.emitGuidanceLine(this.stage.surfaceGuidance, 1800, time);
     }
 
@@ -3008,7 +2549,7 @@ export class JourneyScene extends Phaser.Scene {
   }
 
   private updateDoubleJumpHint(time: number, loopSnapshot: RunnerLoopSnapshot) {
-    if (this.doubleJumpHintShown) {
+    if (this.guidance.hasShown('double_jump_intro')) {
       return;
     }
 
@@ -3017,7 +2558,7 @@ export class JourneyScene extends Phaser.Scene {
       loopSnapshot.distanceTravelled > 240 &&
       time - this.lastGuidanceAt > 2200
     ) {
-      this.doubleJumpHintShown = true;
+      this.guidance.markShown('double_jump_intro');
       this.triggerDiscoveryBeat('double_jump_intro', time);
     }
   }
@@ -3025,8 +2566,13 @@ export class JourneyScene extends Phaser.Scene {
   private updateSharkEvent(time: number, deltaSeconds: number, loopSnapshot: RunnerLoopSnapshot) {
     if (!this.sharkActive) {
       const pulse = sessionState.snapshot().currentPulse;
+      // The guidance registry doubles as game-state here, same as the old
+      // booleans: 'shark_sighting' = first shark window consumed,
+      // 'hazard_intro' = the player has been hit at least once.
+      const sightingShown = this.guidance.hasShown('shark_sighting');
+      const playerWasHit = this.guidance.hasShown('hazard_intro');
       const firstSharkWindow =
-        !this.sharkHelpGuidanceShown &&
+        !sightingShown &&
         (
           loopSnapshot.currentPhraseId === 'onboarding_shark' ||
           (
@@ -3036,8 +2582,8 @@ export class JourneyScene extends Phaser.Scene {
           )
         );
       const sharkNeeded =
-        (firstSharkWindow && (this.firstHitGuidanceShown || loopSnapshot.levelProgress > 0.26)) ||
-        (this.sharkHelpGuidanceShown && (pulse < 0.88 || this.firstHitGuidanceShown));
+        (firstSharkWindow && (playerWasHit || loopSnapshot.levelProgress > 0.26)) ||
+        (sightingShown && (pulse < 0.88 || playerWasHit));
       this.sharkCooldown -= deltaSeconds;
 
       if (
@@ -3059,8 +2605,9 @@ export class JourneyScene extends Phaser.Scene {
         this.shark.setVisible(true);
         this.sharkShadow.setVisible(true);
 
-        if (!this.sharkHelpGuidanceShown && time - this.lastGuidanceAt > 1800) {
-          this.sharkHelpGuidanceShown = true;
+        // Only marked when the beat actually shows: a spawn suppressed by the
+        // guidance cooldown leaves the first-window semantics intact.
+        if (time - this.lastGuidanceAt > 1800 && this.guidance.showOnce('shark_sighting')) {
           this.triggerDiscoveryBeat('shark_sighting', time);
         }
       }
@@ -3087,19 +2634,22 @@ export class JourneyScene extends Phaser.Scene {
 
     if (!this.sharkTagged && Math.abs(x - this.hero.x) < 48 && Math.abs(y - this.hero.y) < 76) {
       this.sharkTagged = true;
-      this.sharkBurst = 1;
-      this.feedback.collect = Math.max(this.feedback.collect, 0.42);
-      this.feedback.awakening = Math.max(this.feedback.awakening, 0.2);
+      const firstRescue = !this.guidance.hasShown('shark_catch');
+      // The shark's gift is the air/recovery itself — grace and celebration are
+      // not defaults. Keep later rescues subdued (no big star burst).
+      this.sharkBurst = firstRescue ? 1 : 0.5;
+      this.feedback.collect = Math.max(this.feedback.collect, firstRescue ? 0.42 : 0.16);
+      this.feedback.awakening = Math.max(this.feedback.awakening, firstRescue ? 0.2 : 0.08);
       audioCueBus.emit({
         type: 'shark_touch',
-        intensity: 1.02
+        intensity: firstRescue ? 1.02 : 0.84
       });
       this.emitLightMotes(x, y, {
-        count: 7,
-        spread: 30,
+        count: firstRescue ? 7 : 3,
+        spread: firstRescue ? 30 : 18,
         color: 0xf4fff0,
         accentColor: 0x9effcf,
-        durationMs: 460,
+        durationMs: firstRescue ? 460 : 300,
         depth: 5.06
       });
       const pulseBefore = sessionState.snapshot().currentPulse;
@@ -3109,13 +2659,27 @@ export class JourneyScene extends Phaser.Scene {
         sessionState.pulse(pulseRestore);
       }
 
-      if (!this.sharkBenefitGuidanceShown) {
-        this.sharkBenefitGuidanceShown = true;
+      if (firstRescue && !hasSeenDiscoveryBeat('shark_catch')) {
+        this.guidance.markShown('shark_catch');
+        // First rescue: the shark_catch panel beat freezes the run as a readable
+        // "rescue moment". Defer grace until that beat resolves (post-resume) so
+        // it is not spent while time is frozen — applied in dismissDiscoveryBeat.
+        this.pendingSharkGrace = 0.8;
         this.triggerDiscoveryBeat('shark_catch', time);
-      } else if (pulseRestore > 0.01) {
-        const line = SHARK_LINES[this.sharkGuidanceIndex % SHARK_LINES.length]!;
-        this.sharkGuidanceIndex += 1;
-        this.emitGuidanceLine(line, 1200, time);
+      } else {
+        // Either a later rescue, or the rescue beat was already seen this session
+        // (no freeze). The gift is the restored air; grant grace only if the hero
+        // is genuinely at risk — already inside a post-hit i-frame window.
+        this.guidance.markShown('shark_catch');
+        if (loopSnapshot.invulnerabilitySeconds > 0) {
+          this.runnerLoop.grantGrace(loopSnapshot.invulnerabilitySeconds + 0.4);
+        }
+
+        if (pulseRestore > 0.01) {
+          const line = SHARK_LINES[this.sharkGuidanceIndex % SHARK_LINES.length]!;
+          this.sharkGuidanceIndex += 1;
+          this.emitGuidanceLine(line, 1200, time);
+        }
       }
 
       this.sharkActive = false;
