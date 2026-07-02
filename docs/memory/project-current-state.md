@@ -1,6 +1,6 @@
 ---
 tags: [cure-runner, mateo-game, memory, architecture]
-updated: 2026-06-21
+updated: 2026-07-02
 ---
 
 # Project Current State
@@ -19,46 +19,55 @@ Compact, high-signal snapshot. Source of truth for agents. Update when a slice l
 - Audio: procedural WebAudio via [audioCueBus.ts](../../src/game/services/audio/audioCueBus.ts) + [reactiveAudioLayer.ts](../../src/game/services/audio/reactiveAudioLayer.ts). Zero audio asset files.
 - Persistence: [localProgressStore.ts](../../src/game/services/persistence/localProgressStore.ts) — localStorage key `mateo.spark-journey.progress.v1`, stores only `awakeningLevel` + `collectedSparks`.
 - Deploy: GitHub Pages via [deploy-pages.yml](../../.github/workflows/deploy-pages.yml) on push to `main`.
+- Dev server: port `5174`, `strictPort: true` in both `vite.config.ts` and the `dev`/`preview` npm scripts.
 
-## What was just changed (Fact — foundation slice)
-- Untracked ~21 unused image drafts from git (`git rm --cached`); files **kept on disk**. `.gitignore` updated to prevent re-tracking (root drafts, `Imagenes/`, `src/assets/hero/phase1-png/`).
-- Added minimal level layer:
-  - [src/game/content/levels/types.ts](../../src/game/content/levels/types.ts) — `LevelDefinition` interface.
-  - [src/game/content/levels/levelRegistry.ts](../../src/game/content/levels/levelRegistry.ts) — single level `w1-l1` wrapping `journeyStages['wounded-planet']` **by reference**.
-- [BootScene.ts](../../src/game/scenes/BootScene.ts): `INITIAL_STAGE_KEY = getFirstLevel().stageKey` (value-identical to the old hardcoded `'wounded-planet'`).
-- Behavior unchanged. `npm run check` + `npm run build` passed.
+## What was just changed (Fact — 9 commits landed 2026-07-02, `833b8aa..dc933f5`)
+All of the below is now in `HEAD`, not just the working tree. Verified by isolating each commit with `git stash` and re-running `npm run build` + `npm test` before moving to the next.
+
+- **Vitest infrastructure** (`ffd5bee`): `npm test` / `npm run test:watch`, 40 Phaser-free tests (`sessionState`, `phraseFairness` — encodes [gameplay-fairness-rules.md](gameplay-fairness-rules.md) as data invariants over both stages, `localProgressStore`, `levelRegistry`). Extracted [entityCatalog.ts](../../src/game/systems/runner/entityCatalog.ts) out of `RunnerLoopSystem` so tests read real hitbox numbers.
+- **Dev server port 4321 → 5174** (`58300e9`), `strictPort` kept on both `vite.config.ts` and the `dev` npm script (the script's CLI flag overrides the config file — both had to move).
+- **`BackdropRenderer`** (`68d3ef9` adds the module, `dc933f5` wires it in): [BackdropRenderer.ts](../../src/game/systems/backdrop/BackdropRenderer.ts), 538 LOC, owns the Graphics layer, follow smoothing, redraw throttle and both stage painters. `JourneyScene` no longer has any inline backdrop code.
+- **`GuidanceDirector`** (`6dc65bc` adds the module, `dc933f5` wires it in): [GuidanceDirector.ts](../../src/game/systems/guidance/GuidanceDirector.ts), 75 LOC, data table of 13 one-time guidance keys (`hasShown`/`markShown`/`showOnce`/`reset`). Replaces the 13 `*GuidanceShown` booleans that used to live in `JourneyScene`. 3 keys double as game-state read by the shark director (`hazard_intro`, `shark_sighting`, `shark_catch`); `finishAwakeningBeatShown` stays a scene-local boolean by decision (it's part of the finish sequence, not player guidance).
+- **`CLAUDE.md` committed** (`71f344a`) — first time this file enters git history. Includes a new "Creative DNA (non-negotiable)" section: Mateo's sketches are the art source (never polish toward a generic style), values are felt through play/symbol never taught explicitly, and a Geometry-Dash-inspired physics direction (precise jumps, rhythm sync, instant retry, speed tension) for future mechanics — direction only, nothing implemented yet.
+- **Entry-flow correctness pass** (`5f9e917`): DOM cover and `LevelEntryScene` both start on an explicit CTA only (card is a plain container, not a giant button — a stray tap never starts the level); `BootScene` is a true neutral loader (DOM cover stays up until the first Phaser screen announces itself via `mateo:ui-screen`); shared [phaserTextStyle.ts](../../src/ui/phaserTextStyle.ts) keeps loading/entry text crisp on hi-DPI phones; `global.css` gained safe-area-aware full-bleed cover styling and reduced-motion coverage.
+- **Gameplay-fairness pass** (`c509948`): `journeyStages.ts` moonlight (stage 2) phrases redesigned around one visual vocabulary (grounded shard = jump over, overhead mirror/crown = run under, never the same sprite for both verbs), plus a `0.92` speed multiplier for stage-2 reaction time. `runnerConfig.ts` + `RunnerLoopSystem.ts`: post-hit invulnerability raised `0.82s → 1.1s`, new `grantGrace()` API, `+0.35s` bonus grace on a reserve save.
+- **`JourneyScene.ts` wiring + carried-forward WIP, one wide commit** (`dc933f5`) — deliberately NOT split further; see that commit's message for the full disclosure of what's bundled. On top of the BackdropRenderer/GuidanceDirector wiring, it also carries: pause as a hard freeze (halts the shark too), the i-frame hero blink, deferred/subdued shark rescue grace, victory pre-contact hop removed + celebration float eases in from zero, and two stray orphaned panel buttons now destroyed instead of left stranded. `JourneyScene.ts` is now **2819 LOC** (down from ~3255 before any of this landed).
+- **Docs** (`d2e6976`): [gameplay-fairness-rules.md](gameplay-fairness-rules.md) (authoritative reachability/i-frame/pause/shark/final-note rules) and [level-03-direction.md](level-03-direction.md) (Level 3 readiness gate + future direction) committed.
 
 ## What is verified (Fact)
-- `tsc --noEmit` exits 0; `vite build` succeeds.
-- Bundled runtime asset set unchanged by the level slice (9 imported assets only).
-- `getFirstLevel().stageKey === 'wounded-planet'` — same stage reference as before.
+- `tsc --noEmit` exits 0, `vite build` succeeds, `npm test` is **48/48 green at `HEAD`** — confirmed both at the full tree and isolated per-commit via `git stash` at every checkpoint above.
+- The moonlight fairness data invariants (5 tests) only pass once `c509948` (the phrase redesign) is present — expected: they encode the redesigned data, not the pre-redesign phrases. No longer a caveat now that `c509948` is committed.
+- Browser smoke test (Chrome, against this exact working-tree content before it was committed — same bytes, not re-run post-commit): entry cover → CTA starts run → backdrop/hero/collectibles render, "Notas."/"Golpe." discovery beats fire once each and don't re-trigger, Repetir resets per-run guidance, moonlight backdrop (sky/moon/mountain/crystal layers, parallax) renders correctly through `BackdropRenderer`, pause hard-freeze works, zero console errors throughout.
+- `getFirstLevel().stageKey === 'wounded-planet'` — same stage reference as before the level-registry slice.
 
 ## What is NOT implemented (Fact)
 - Firebase: [firebaseGateway.ts](../../src/game/services/backend/firebaseGateway.ts) is a **no-op stub, imported by nobody**, no SDK in `package.json`. Do not describe as implemented.
 - No `LevelDefinition` consumption beyond resolving the initial stage. No level select, no unlock/progress-per-level state.
 - Levels 2-10: not authored.
-- No automated tests (only `tsc` gate).
 - No PWA manifest / service worker.
-- `BackdropRenderer`, `GuidanceDirector`, overlay modules: **do not exist yet** (planned extractions).
+- Overlay modules (pause/help/fail/finish/discovery): **do not exist yet** as extracted modules — that logic still lives inline in `JourneyScene.ts`.
+- Tests cover pure state/data only — scenes and the runner loop itself are still untested (Phaser-coupled).
+- **Real-phone verification of the fairness/entry-flow pass has not happened.** Everything below is code-committed and Chrome-verified, but nobody has played it on an actual mid-range Android device yet.
 
 ## Immediate next priorities (Next action — in order)
-1. Extract `BackdropRenderer` from [JourneyScene.ts](../../src/game/scenes/JourneyScene.ts) (behavior-preserving).
-2. Extract `GuidanceDirector` (replace the ~40 `*GuidanceShown` booleans with a data table).
-3. Extract overlays (pause/help/fail/finish/discovery) into modules.
-4. Expand `LevelDefinition` (tuning overrides, phrase pools, mechanic flags).
-5. Then author levels 1-10 as data.
+1. **Real-phone pass before authoring Level 3.** All four prerequisites from the former "stabilize" gate are now code-complete and committed: entry is CTA-only, `BootScene` is a neutral loader, the cover is safe-area-aware, and moonlight hazards follow the shard-jump/mirror-crown-duck convention in [gameplay-fairness-rules.md](gameplay-fairness-rules.md). The one remaining blocker is verification on a real phone (see [level-03-direction.md](level-03-direction.md)) — do not author Level 3 until that pass happens.
+2. ~~Extract `BackdropRenderer`~~ — **DONE**, wired into `JourneyScene` (2026-07-02).
+3. ~~Extract `GuidanceDirector`~~ — **DONE**, wired into `JourneyScene` (2026-07-02).
+4. Extract overlays (pause/help/fail/finish/discovery) into modules.
+5. Expand `LevelDefinition` (tuning overrides, phrase pools, mechanic flags).
+6. Then author levels 1-10 as data.
 
 ## Known risks (Risk)
-- [JourneyScene.ts](../../src/game/scenes/JourneyScene.ts) ~3255 LOC god-object — violates the constitution; raises AI-token cost and edit risk. Decompose incrementally, one system per commit.
-- No tests → refactors are unguarded. Add Vitest for `sessionState` before/with the first extraction.
+- [JourneyScene.ts](../../src/game/scenes/JourneyScene.ts) still 2819 LOC after the backdrop + guidance extractions — keep decomposing incrementally, one system per commit (next: overlay modules).
 - Runner entities are created per spawn with no pooling → GC churn on mobile (perf, not correctness).
-- Mobile FPS / input latency on real mid-range Android: **Needs verification** (no device pass on record).
+- Mobile FPS / input latency on real mid-range Android: **Needs verification** (no device pass on record) — this is now the single gate blocking Level 3.
 - GitHub Pages "source = GitHub Actions" setting: **Needs verification** in repo settings.
 
 ## Strict "do not assume" list
 - Do **not** assume Firebase works — it is a stub.
 - Do **not** assume levels 2-10 exist or that `LevelDefinition` is consumed in gameplay.
-- Do **not** assume `BackdropRenderer`/`GuidanceDirector`/overlay modules exist.
-- Do **not** assume tests exist.
+- Do **not** assume overlay modules exist — `BackdropRenderer` and `GuidanceDirector` do, and both are wired into `JourneyScene`.
+- Do **not** assume scene/runner-loop behavior is test-covered — only pure state/data is (48 Vitest tests).
 - Do **not** assume the untracked image drafts are deleted — they are on disk, only untracked.
+- Do **not** assume the fairness/entry-flow pass has been verified on a real phone — it hasn't.
 - Do **not** assume an external Obsidian vault is available; `docs/memory/` is the stable layer.
