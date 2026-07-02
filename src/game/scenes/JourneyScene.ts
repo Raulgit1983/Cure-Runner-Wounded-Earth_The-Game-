@@ -1,9 +1,13 @@
 import Phaser from 'phaser';
 
 import { heroProfile } from '@/game/content/heroProfile';
-import { quickHelpContent } from '@/game/content/helpContent';
 import { journeyStages, type JourneyStageDefinition, type JourneyStageKey } from '@/game/content/journeyStages';
 import { journeyConfig } from '@/game/content/journeyConfig';
+import {
+  CONTINUE_BUTTON_LABEL,
+  HOME_BUTTON_LABEL,
+  REPLAY_BUTTON_LABEL
+} from '@/game/content/overlayText';
 import { runnerConfig } from '@/game/content/runnerConfig';
 import { audioCueBus } from '@/game/services/audio/audioCueBus';
 import { localProgressStore } from '@/game/services/persistence/localProgressStore';
@@ -12,7 +16,9 @@ import { sessionState } from '@/game/state/sessionState';
 import { BackdropRenderer } from '@/game/systems/backdrop/BackdropRenderer';
 import { EmotionController } from '@/game/systems/emotion/EmotionController';
 import { GuidanceDirector } from '@/game/systems/guidance/GuidanceDirector';
+import { PauseFlow } from '@/game/systems/overlays/PauseFlow';
 import { RunnerLoopSystem, type RunnerLoopSnapshot } from '@/game/systems/runner/RunnerLoopSystem';
+import { createPanelButton } from '@/ui/panelButton';
 
 const SHARK_TEXTURE_KEY = 'shark-friend';
 const DEBUG_DECORATIVE_FAMILIES = ['backdrop', 'ground-markers', 'shark-friend'] as const;
@@ -40,14 +46,7 @@ const FAIL_CLOSING = 'Toca para volver.';
 const MOONLIGHT_FAIL_TITLE = 'Aún hay reflejo.';
 const MOONLIGHT_FAIL_BODY = 'La luna sigue ahí.';
 const MOONLIGHT_FAIL_CLOSING = 'Toca para volver.';
-const HOME_BUTTON_LABEL = 'Inicio';
-const CONTINUE_BUTTON_LABEL = 'Continuar';
 const FINISH_CONTINUE_BUTTON_LABEL = 'Seguir';
-const REPLAY_BUTTON_LABEL = 'Repetir';
-const HELP_BUTTON_LABEL = 'Ayuda';
-const PAUSE_TITLE = 'Pausa.';
-const PAUSE_BODY = 'Puedes seguir cuando quieras.';
-const PAUSE_CLOSING = 'La ruta espera.';
 const MOONLIGHT_OPPORTUNITY_LINE = 'Queda una oportunidad.';
 const MOONLIGHT_OPPORTUNITY_PULSE = 0.46;
 const CONTINUE_TITLE = 'Respira.';
@@ -265,9 +264,7 @@ export class JourneyScene extends Phaser.Scene {
   private discoveryTitleText!: Phaser.GameObjects.Text;
   private discoveryBodyText!: Phaser.GameObjects.Text;
   private discoveryClosingText!: Phaser.GameObjects.Text;
-  private pauseOverlay!: Phaser.GameObjects.Rectangle;
-  private pauseStage!: Phaser.GameObjects.Container;
-  private helpStage!: Phaser.GameObjects.Container;
+  private pauseFlow!: PauseFlow;
   private retryOverlay!: Phaser.GameObjects.Rectangle;
   private runnerLoop!: RunnerLoopSystem;
   private shark!: Phaser.GameObjects.Container;
@@ -310,19 +307,7 @@ export class JourneyScene extends Phaser.Scene {
   private activeDiscoveryBeatId: DiscoveryBeatId | null = null;
   private queuedDiscoveryBeatId: DiscoveryBeatId | null = null;
   private offAudioCue?: () => void;
-  private pauseOpen = false;
-  private helpOpen = false;
   private moonlightOpportunityAvailable = false;
-  private readonly handlePauseRequest = () => {
-    this.togglePauseStage();
-  };
-  private readonly handlePauseKeyDown = (event: KeyboardEvent) => {
-    if (event.key !== 'Escape' && event.key.toLowerCase() !== 'p') {
-      return;
-    }
-
-    this.togglePauseStage();
-  };
 
   constructor() {
     super('journey');
@@ -367,8 +352,6 @@ export class JourneyScene extends Phaser.Scene {
     this.guidance.reset();
     this.activeDiscoveryBeatId = null;
     this.queuedDiscoveryBeatId = null;
-    this.pauseOpen = false;
-    this.helpOpen = false;
     this.moonlightOpportunityAvailable = this.stage.backdropKind === 'moonlight-mountain';
 
     this.emitVictoryState(false);
@@ -440,26 +423,17 @@ export class JourneyScene extends Phaser.Scene {
     this.discoveryTitleText = discoveryStage.title;
     this.discoveryBodyText = discoveryStage.body;
     this.discoveryClosingText = discoveryStage.closing;
-    this.pauseOverlay = this.add
-      .rectangle(width * 0.5, journeyConfig.logicalSize.height * 0.5, width, journeyConfig.logicalSize.height, 0x071018, 0.001)
-      .setDepth(6.7)
-      .setAlpha(0)
-      .setVisible(false)
-      .setInteractive();
-    this.pauseOverlay.on(
-      'pointerdown',
-      (
-        _pointer: Phaser.Input.Pointer,
-        _localX: number,
-        _localY: number,
-        event: Phaser.Types.Input.EventData
-      ) => {
-        event.stopPropagation();
-      }
-    );
-    this.pauseOverlay.disableInteractive();
-    this.pauseStage = this.createPauseStage(width * 0.5, 306);
-    this.helpStage = this.createHelpStage(width * 0.5, 304);
+    this.pauseFlow = new PauseFlow(this, {
+      canPause: () => !this.failResolved && !this.finishResolved && !this.returnHomeQueued,
+      isDiscoveryBeatActive: () => this.activeDiscoveryBeatId !== null,
+      canRestoreRun: () =>
+        !this.failResolved && !this.finishResolved && !this.activeDiscoveryBeatId,
+      setRunFrozen: (frozen) => this.runnerLoop.setFrozen(frozen),
+      haltShark: () => this.haltSharkEvent(),
+      emitFocusMode: (active) => this.emitFocusMode(active),
+      replayCurrentStage: () => this.replayCurrentStage(),
+      returnToStart: () => this.returnToStart()
+    });
     this.retryOverlay = this.add
       .rectangle(width * 0.5, journeyConfig.logicalSize.height * 0.5, width, journeyConfig.logicalSize.height, 0x000000, 0.001)
       .setDepth(6.76)
@@ -485,11 +459,6 @@ export class JourneyScene extends Phaser.Scene {
       });
     }
 
-    if (typeof window !== 'undefined') {
-      window.addEventListener('mateo:pause-request', this.handlePauseRequest as EventListener);
-      window.addEventListener('keydown', this.handlePauseKeyDown);
-    }
-
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, this.handleShutdown, this);
   }
 
@@ -500,7 +469,7 @@ export class JourneyScene extends Phaser.Scene {
     // runner, backdrop, shark, and finish sequence stop together behind the
     // overlay. Overlay tweens run on the tween manager, so the panel still
     // animates; resuming simply continues from the frozen frame.
-    if (this.pauseOpen) {
+    if (this.pauseFlow.isOpen()) {
       return;
     }
 
@@ -774,175 +743,12 @@ export class JourneyScene extends Phaser.Scene {
   }
 
   private handleShutdown() {
-    if (typeof window !== 'undefined') {
-      window.removeEventListener('mateo:pause-request', this.handlePauseRequest as EventListener);
-      window.removeEventListener('keydown', this.handlePauseKeyDown);
-    }
-
-    this.closePauseFlow(false);
+    this.pauseFlow.destroy();
     this.hideDiscoveryStage();
     this.emitVictoryState(false);
     this.emitFocusMode(false);
     this.offAudioCue?.();
     this.runnerLoop?.destroy();
-  }
-
-  private canPause() {
-    return !this.failResolved && !this.finishResolved && !this.returnHomeQueued;
-  }
-
-  private togglePauseStage() {
-    if (!this.sys.isActive()) {
-      return;
-    }
-
-    if (this.pauseOpen) {
-      this.closePauseFlow(true);
-      return;
-    }
-
-    if (!this.canPause() || this.activeDiscoveryBeatId) {
-      return;
-    }
-
-    this.openPauseStage();
-  }
-
-  private openPauseStage() {
-    if (this.pauseOpen || !this.canPause()) {
-      return;
-    }
-
-    this.pauseOpen = true;
-    this.helpOpen = false;
-    this.runnerLoop.setFrozen(true);
-    // Clear any in-flight shark so it does not sit frozen (or "ghost") behind
-    // the pause overlay. It is a periodic helper; the next fly-by re-triggers.
-    this.haltSharkEvent();
-    this.emitFocusMode(true);
-    this.pauseOverlay.setVisible(true).setAlpha(0.001).setInteractive();
-    this.pauseStage.setVisible(true).setAlpha(0).setScale(0.92);
-    this.helpStage.setVisible(false).setAlpha(0).setScale(0.92);
-    this.children.bringToTop(this.pauseOverlay);
-    this.children.bringToTop(this.pauseStage);
-    this.tweens.killTweensOf(this.pauseOverlay);
-    this.tweens.killTweensOf(this.pauseStage);
-    this.tweens.killTweensOf(this.helpStage);
-    this.tweens.add({
-      targets: this.pauseOverlay,
-      alpha: 0.28,
-      duration: 150,
-      ease: 'Quad.easeOut'
-    });
-    this.tweens.add({
-      targets: this.pauseStage,
-      alpha: 0.98,
-      scaleX: 0.98,
-      scaleY: 0.98,
-      duration: 180,
-      ease: 'Back.easeOut'
-    });
-  }
-
-  private closePauseFlow(restoreRun: boolean) {
-    if (!this.pauseOpen && !this.helpOpen) {
-      return;
-    }
-
-    this.pauseOpen = false;
-    this.helpOpen = false;
-    this.tweens.killTweensOf(this.pauseOverlay);
-    this.tweens.killTweensOf(this.pauseStage);
-    this.tweens.killTweensOf(this.helpStage);
-    this.tweens.add({
-      targets: this.pauseOverlay,
-      alpha: 0,
-      duration: 110,
-      ease: 'Quad.easeIn',
-      onComplete: () => {
-        this.pauseOverlay.disableInteractive();
-        this.pauseOverlay.setVisible(false);
-      }
-    });
-    this.tweens.add({
-      targets: [this.pauseStage, this.helpStage],
-      alpha: 0,
-      scaleX: 0.92,
-      scaleY: 0.92,
-      duration: 130,
-      ease: 'Quad.easeIn',
-      onComplete: () => {
-        this.pauseStage.setVisible(false);
-        this.helpStage.setVisible(false);
-      }
-    });
-
-    if (restoreRun && !this.failResolved && !this.finishResolved && !this.activeDiscoveryBeatId) {
-      this.runnerLoop.setFrozen(false);
-      this.emitFocusMode(false);
-    }
-  }
-
-  private openPauseHelp() {
-    if (!this.pauseOpen || this.helpOpen) {
-      return;
-    }
-
-    this.helpOpen = true;
-    this.helpStage.setVisible(true).setAlpha(0).setScale(0.92);
-    this.children.bringToTop(this.helpStage);
-    this.tweens.killTweensOf(this.pauseStage);
-    this.tweens.killTweensOf(this.helpStage);
-    this.tweens.add({
-      targets: this.pauseStage,
-      alpha: 0,
-      scaleX: 0.92,
-      scaleY: 0.92,
-      duration: 110,
-      ease: 'Quad.easeIn',
-      onComplete: () => {
-        this.pauseStage.setVisible(false);
-      }
-    });
-    this.tweens.add({
-      targets: this.helpStage,
-      alpha: 0.98,
-      scaleX: 0.98,
-      scaleY: 0.98,
-      duration: 170,
-      ease: 'Back.easeOut'
-    });
-  }
-
-  private closePauseHelp() {
-    if (!this.pauseOpen || !this.helpOpen) {
-      return;
-    }
-
-    this.helpOpen = false;
-    this.pauseStage.setVisible(true).setAlpha(0).setScale(0.92);
-    this.children.bringToTop(this.pauseStage);
-    this.tweens.killTweensOf(this.pauseStage);
-    this.tweens.killTweensOf(this.helpStage);
-    this.tweens.add({
-      targets: this.helpStage,
-      alpha: 0,
-      scaleX: 0.92,
-      scaleY: 0.92,
-      duration: 110,
-      ease: 'Quad.easeIn',
-      onComplete: () => {
-        this.helpStage.setVisible(false);
-      }
-    });
-    this.tweens.add({
-      targets: this.pauseStage,
-      alpha: 0.98,
-      scaleX: 0.98,
-      scaleY: 0.98,
-      duration: 170,
-      ease: 'Back.easeOut'
-    });
   }
 
   private createIngredient(x: number, y: number) {
@@ -1230,56 +1036,6 @@ export class JourneyScene extends Phaser.Scene {
     }
   }
 
-  private createPanelButton(label: string, width: number, onPress: () => void, fontSize = '12px') {
-    const panel = this.add.graphics();
-    panel.fillStyle(0x121a21, 0.94);
-    panel.lineStyle(2, 0xdde8cf, 0.16);
-    panel.fillRoundedRect(-width * 0.5, -17, width, 34, 14);
-    panel.strokeRoundedRect(-width * 0.5, -17, width, 34, 14);
-    panel.fillStyle(0xf4ffd8, 0.03);
-    panel.fillRoundedRect(-width * 0.5 + 8, -10, width - 16, 8, 10);
-
-    const text = this.add
-      .text(0, 0, label, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize,
-        color: '#f7f6ec',
-        stroke: '#0a1015',
-        strokeThickness: 1,
-        align: 'center'
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-
-    const hit = this.add
-      .rectangle(0, 0, width, 38, 0x000000, 0.001)
-      .setInteractive({ useHandCursor: true });
-
-    const button = this.add.container(0, 0, [panel, text, hit]).setSize(width, 38);
-
-    hit.on(
-      'pointerdown',
-      (
-        _pointer: Phaser.Input.Pointer,
-        _localX: number,
-        _localY: number,
-        event: Phaser.Types.Input.EventData
-      ) => {
-        event.stopPropagation();
-        onPress();
-      }
-    );
-    hit.on('pointerover', () => {
-      button.setScale(1.02).setAlpha(1);
-    });
-    hit.on('pointerout', () => {
-      button.setScale(1).setAlpha(0.98);
-    });
-
-    return button.setAlpha(0.98);
-  }
-
   private createFinishMessage(x: number, y: number) {
     const panel = this.add.graphics();
     panel.fillStyle(0x0b1117, 0.95);
@@ -1351,19 +1107,22 @@ export class JourneyScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setResolution(2)
       .setShadow(0, 1, '#04070b', 2, false, true);
-    const continueButton = this.createPanelButton(
+    const continueButton = createPanelButton(
+      this,
       FINISH_CONTINUE_BUTTON_LABEL,
       88,
       () => this.openContinuation(),
       '11px'
     );
-    const homeButton = this.createPanelButton(
+    const homeButton = createPanelButton(
+      this,
       HOME_BUTTON_LABEL,
       118,
       () => this.returnToStart(),
       '11px'
     );
-    const replayButton = this.createPanelButton(
+    const replayButton = createPanelButton(
+      this,
       REPLAY_BUTTON_LABEL,
       94,
       () => this.replayCurrentStage(),
@@ -1460,7 +1219,7 @@ export class JourneyScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setResolution(2)
       .setShadow(0, 1, '#04070b', 2, false, true);
-    const button = this.createPanelButton(HOME_BUTTON_LABEL, 136, () => this.returnToStart());
+    const button = createPanelButton(this, HOME_BUTTON_LABEL, 136, () => this.returnToStart());
 
     button.setPosition(0, 86);
 
@@ -1525,13 +1284,15 @@ export class JourneyScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setResolution(2)
       .setShadow(0, 1, '#04070b', 2, false, true);
-    const continueButton = this.createPanelButton(
+    const continueButton = createPanelButton(
+      this,
       CONTINUE_BUTTON_LABEL,
       98,
       () => this.dismissDiscoveryBeat(),
       '11px'
     );
-    const homeButton = this.createPanelButton(
+    const homeButton = createPanelButton(
+      this,
       HOME_BUTTON_LABEL,
       112,
       () => this.returnToStart(),
@@ -1552,170 +1313,6 @@ export class JourneyScene extends Phaser.Scene {
       body,
       closing
     };
-  }
-
-  private createPauseStage(x: number, y: number) {
-    const panel = this.add.graphics();
-    panel.fillStyle(0x0b1117, 0.96);
-    panel.lineStyle(2, 0xdce9d6, 0.1);
-    panel.fillRoundedRect(-122, -92, 244, 206, 22);
-    panel.strokeRoundedRect(-122, -92, 244, 206, 22);
-    panel.lineStyle(1, 0xf7fff0, 0.024);
-    panel.strokeRoundedRect(-114, -84, 228, 190, 18);
-    panel.fillStyle(0xf1ffbe, 0.026);
-    panel.fillEllipse(0, -48, 88, 24);
-
-    const title = this.add
-      .text(0, -48, PAUSE_TITLE, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '20px',
-        color: '#f2ffbe',
-        stroke: '#081018',
-        strokeThickness: 2,
-        align: 'center'
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#03060a', 3, false, true);
-    const body = this.add
-      .text(0, -8, PAUSE_BODY, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '13px',
-        color: '#fff7ec',
-        stroke: '#091018',
-        strokeThickness: 1,
-        align: 'center',
-        wordWrap: { width: 188, useAdvancedWrap: true },
-        lineSpacing: 3
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const closing = this.add
-      .text(0, 28, PAUSE_CLOSING, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '12px',
-        color: '#cfe8d9',
-        stroke: '#091018',
-        strokeThickness: 1,
-        align: 'center'
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const continueButton = this.createPanelButton(
-      CONTINUE_BUTTON_LABEL,
-      104,
-      () => this.closePauseFlow(true),
-      '11px'
-    );
-    const helpButton = this.createPanelButton(HELP_BUTTON_LABEL, 98, () => this.openPauseHelp(), '11px');
-    const replayButton = this.createPanelButton(
-      REPLAY_BUTTON_LABEL,
-      98,
-      () => {
-        this.closePauseFlow(false);
-        this.replayCurrentStage();
-      },
-      '11px'
-    );
-    const homeButton = this.createPanelButton(
-      HOME_BUTTON_LABEL,
-      108,
-      () => {
-        this.closePauseFlow(false);
-        this.returnToStart();
-      },
-      '11px'
-    );
-
-    continueButton.setPosition(-56, 76);
-    helpButton.setPosition(56, 76);
-    replayButton.setPosition(-56, 116);
-    homeButton.setPosition(56, 116);
-
-    return this.add
-      .container(x, y, [panel, title, body, closing, continueButton, helpButton, replayButton, homeButton])
-      .setDepth(6.72)
-      .setAlpha(0)
-      .setScale(0.92)
-      .setVisible(false);
-  }
-
-  private createHelpStage(x: number, y: number) {
-    const panel = this.add.graphics();
-    panel.fillStyle(0x0b1117, 0.96);
-    panel.lineStyle(2, 0xdce9d6, 0.1);
-    panel.fillRoundedRect(-122, -106, 244, 226, 22);
-    panel.strokeRoundedRect(-122, -106, 244, 226, 22);
-    panel.lineStyle(1, 0xf7fff0, 0.024);
-    panel.strokeRoundedRect(-114, -98, 228, 210, 18);
-    panel.fillStyle(0xf1ffbe, 0.026);
-    panel.fillEllipse(0, -62, 96, 24);
-
-    const title = this.add
-      .text(0, -62, quickHelpContent.title, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '18px',
-        color: '#f2ffbe',
-        stroke: '#081018',
-        strokeThickness: 2,
-        align: 'center'
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#03060a', 3, false, true);
-    const lead = this.add
-      .text(0, -24, quickHelpContent.lead, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '13px',
-        color: '#fff8ef',
-        stroke: '#091018',
-        strokeThickness: 1,
-        align: 'center',
-        wordWrap: { width: 188, useAdvancedWrap: true },
-        lineSpacing: 3
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const lineA = this.add
-      .text(0, 16, quickHelpContent.lines[0], {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '12px',
-        color: '#d9e2e8',
-        align: 'center',
-        wordWrap: { width: 194, useAdvancedWrap: true },
-        lineSpacing: 3
-      })
-      .setOrigin(0.5)
-      .setResolution(2);
-    const lineB = this.add
-      .text(0, 54, `${quickHelpContent.lines[1]} ${quickHelpContent.lines[2]}`, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '12px',
-        color: '#d9e2e8',
-        align: 'center',
-        wordWrap: { width: 194, useAdvancedWrap: true },
-        lineSpacing: 3
-      })
-      .setOrigin(0.5)
-      .setResolution(2);
-    const backButton = this.createPanelButton(
-      quickHelpContent.back,
-      118,
-      () => this.closePauseHelp(),
-      '11px'
-    );
-
-    backButton.setPosition(0, 104);
-
-    return this.add
-      .container(x, y, [panel, title, lead, lineA, lineB, backButton])
-      .setDepth(6.73)
-      .setAlpha(0)
-      .setScale(0.92)
-      .setVisible(false);
   }
 
   private createFailStage(x: number, y: number) {
@@ -1770,13 +1367,15 @@ export class JourneyScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setResolution(2)
       .setShadow(0, 1, '#04070b', 2, false, true);
-    const replayButton = this.createPanelButton(
+    const replayButton = createPanelButton(
+      this,
       REPLAY_BUTTON_LABEL,
       98,
       () => this.triggerRestartFromFailure(),
       '11px'
     );
-    const homeButton = this.createPanelButton(
+    const homeButton = createPanelButton(
+      this,
       HOME_BUTTON_LABEL,
       108,
       () => this.returnToStart(),
@@ -2009,7 +1608,7 @@ export class JourneyScene extends Phaser.Scene {
       return;
     }
 
-    this.closePauseFlow(false);
+    this.pauseFlow.close(false);
     this.finishResolved = true;
     this.continueResolved = false;
     this.finishPulse = 1;
@@ -2036,7 +1635,7 @@ export class JourneyScene extends Phaser.Scene {
       return;
     }
 
-    this.closePauseFlow(false);
+    this.pauseFlow.close(false);
     this.failResolved = true;
     this.restartQueued = false;
     this.hitReactionTimer = 0;
@@ -2226,7 +1825,7 @@ export class JourneyScene extends Phaser.Scene {
     }
 
     this.returnHomeQueued = true;
-    this.closePauseFlow(false);
+    this.pauseFlow.close(false);
     this.emitFocusMode(false);
     this.emitVictoryState(false);
     sessionState.hydrate({
