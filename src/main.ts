@@ -40,7 +40,7 @@ app.innerHTML = `
       <header class="hud" id="hud"></header>
       <div class="game-root" id="game-root"></div>
       <div class="entry-shell" id="entry-shell" data-state="idle" data-help="closed"${isFirstRun ? ' data-first-run="true"' : ''}>
-        <button class="entry-shell__button" id="entry-button" type="button">
+        <div class="entry-shell__stage" id="entry-card">
           <div class="entry-flow__title-stage">
             <div class="entry-flow__header">
               <span class="entry-flow__eyebrow">${globalWelcomeContent.eyebrow}</span>
@@ -67,8 +67,8 @@ app.innerHTML = `
               </div>
             </div>
 
-            <div class="entry-flow__cta-stage" aria-hidden="true">
-              <span class="entry-flow__cta">${welcomeCta}</span>
+            <div class="entry-flow__cta-stage">
+              <button class="entry-flow__cta" id="entry-cta" type="button">${welcomeCta}</button>
             </div>
           </div>
 
@@ -82,7 +82,7 @@ app.innerHTML = `
               <span></span>
             </span>
           </span>
-        </button>
+        </div>
 
         ${
           shouldSurfaceWelcomeHelp || canOpenFullscreen
@@ -145,7 +145,9 @@ const hud = createHud(hudRoot);
 const audioLayer = createReactiveAudioLayer();
 const gameFrame = document.querySelector<HTMLElement>('.game-frame');
 const entryShell = document.querySelector<HTMLElement>('#entry-shell');
-const entryButton = document.querySelector<HTMLButtonElement>('#entry-button');
+// Only the explicit CTA starts the journey. The surrounding card is a plain
+// <div>, so tapping the art/copy/empty space does nothing.
+const entryButton = document.querySelector<HTMLButtonElement>('#entry-cta');
 const entryEyebrow = document.querySelector<HTMLElement>('[data-role="entry-eyebrow"]');
 const entryTitle = document.querySelector<HTMLElement>('[data-role="entry-title"]');
 const entryCopy = document.querySelector<HTMLElement>('[data-role="entry-copy"]');
@@ -256,10 +258,18 @@ const bootGame = async (trigger: string) => {
 
   const { createGame } = await importWithRecovery(() => import('@/game/createGame'));
   createGame('game-root');
-  entryShell?.setAttribute('data-state', 'ready');
+  // Keep the cover up (in its loading state) until the first Phaser screen
+  // announces itself via 'mateo:ui-screen' — LevelEntry emits 'chapter'/'loading',
+  // Journey emits 'playing', and on a load failure BootScene emits too.
+  // handleUiScreen() then fades the cover out. This hides the neutral Boot
+  // handoff entirely (cover → level entry, no flash). The long fallback only
+  // fires if that event never arrives, so the cover is never stranded.
   window.setTimeout(() => {
-    entryShell?.remove();
-  }, 220);
+    if (entryShell?.isConnected) {
+      entryShell.setAttribute('data-state', 'ready');
+      window.setTimeout(() => entryShell?.remove(), 220);
+    }
+  }, 4000);
   return true;
 };
 

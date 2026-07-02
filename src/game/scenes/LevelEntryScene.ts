@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 
 import { journeyConfig } from '@/game/content/journeyConfig';
 import { journeyStages, type JourneyStageKey } from '@/game/content/journeyStages';
+import { UI_FONT_STACK, uiTextResolution } from '@/ui/phaserTextStyle';
 
 /**
  * Per-level entry interstitial.
@@ -47,50 +48,52 @@ export class LevelEntryScene extends Phaser.Scene {
     backdrop.fillRect(0, 0, width, height);
 
     this.add
-      .ellipse(centerX, height * 0.36, 220, 250, entry.primaryColor, 0.08)
-      .setBlendMode(Phaser.BlendModes.ADD);
-    this.add
-      .ellipse(centerX, height * 0.42, 168, 182, entry.accentColor, 0.05)
+      .ellipse(centerX, Math.round(height * 0.42), 200, 200, entry.primaryColor, 0.035)
       .setBlendMode(Phaser.BlendModes.ADD);
 
     this.add
-      .text(centerX, height * 0.5 - 64, entry.loading.eyebrow, {
-        fontFamily: 'Avenir Next, Trebuchet MS, Verdana, sans-serif',
-        fontSize: '11px',
-        color: '#b8c4cc',
-        letterSpacing: 1.6
+      .text(centerX, Math.round(height * 0.5 - 64), entry.loading.eyebrow, {
+        fontFamily: UI_FONT_STACK,
+        fontSize: '12px',
+        color: '#b8c4cc'
       })
       .setOrigin(0.5)
+      .setResolution(uiTextResolution())
       .setAlpha(0.82);
 
     this.add
       .text(centerX, height * 0.5 - 10, entry.loading.title, {
-        fontFamily: 'Avenir Next, Trebuchet MS, Verdana, sans-serif',
+        fontFamily: UI_FONT_STACK,
         fontSize: '20px',
         color: '#fff5ea'
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setResolution(uiTextResolution());
 
     this.add
       .text(centerX, height * 0.5 + 22, entry.loading.copy, {
-        fontFamily: 'Avenir Next, Trebuchet MS, Verdana, sans-serif',
+        fontFamily: UI_FONT_STACK,
         fontSize: '11px',
         color: '#d5d8df',
         align: 'center',
         wordWrap: { width: 220, useAdvancedWrap: true }
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5)
+      .setResolution(uiTextResolution());
 
     const renderProgress = (progress: number) => {
       const clamped = Phaser.Math.Clamp(progress, 0, 1);
 
+      // Plain fillRect, NOT fillRoundedRect: a radius larger than half the bar
+      // height makes Phaser's WebGL triangulator emit stray canvas-spanning
+      // lines (the "debug grid" artifact).
       track.clear();
       track.fillStyle(0xffffff, 0.08);
-      track.fillRoundedRect(centerX - barWidth * 0.5, barY, barWidth, 8, 999);
+      track.fillRect(centerX - barWidth * 0.5, barY, barWidth, 8);
 
       fill.clear();
       fill.fillStyle(entry.accentColor, 0.94);
-      fill.fillRoundedRect(centerX - barWidth * 0.5, barY, barWidth * clamped, 8, 999);
+      fill.fillRect(centerX - barWidth * 0.5, barY, Math.max(0, barWidth * clamped), 8);
     };
 
     renderProgress(0.08);
@@ -124,30 +127,28 @@ export class LevelEntryScene extends Phaser.Scene {
     backdrop.fillGradientStyle(0x071018, 0x071018, 0x121822, 0x151d28, 1, 1, 1, 1);
     backdrop.fillRect(0, 0, width, height);
 
+    // Soft ambient glows only — top and bottom — kept very low so they read as
+    // gentle light, never as a dominant vertical green column on mobile.
     this.add
-      .ellipse(centerX, height * 0.3, 240, 280, entry.primaryColor, 0.08)
+      .ellipse(centerX, Math.round(height * 0.32), 220, 190, entry.primaryColor, 0.03)
       .setBlendMode(Phaser.BlendModes.ADD);
     this.add
-      .ellipse(centerX, height * 0.36, 178, 200, entry.accentColor, 0.05)
-      .setBlendMode(Phaser.BlendModes.ADD);
-    this.add
-      .ellipse(centerX, height * 0.78, 290, 86, entry.primaryColor, 0.08)
+      .ellipse(centerX, Math.round(height * 0.76), 250, 78, entry.primaryColor, 0.035)
       .setBlendMode(Phaser.BlendModes.ADD);
 
     const eyebrow = this.add
       .text(centerX, 68, entry.eyebrow, {
-        fontFamily: 'Avenir Next, Trebuchet MS, Verdana, sans-serif',
-        fontSize: '11px',
-        color: '#b8c4cc',
-        letterSpacing: 2
+        fontFamily: UI_FONT_STACK,
+        fontSize: '12px',
+        color: '#b8c4cc'
       })
       .setOrigin(0.5)
-      .setResolution(2)
+      .setResolution(uiTextResolution())
       .setAlpha(0);
 
     const title = this.add
       .text(centerX, 106, entry.title, {
-        fontFamily: 'Avenir Next, Trebuchet MS, Verdana, sans-serif',
+        fontFamily: UI_FONT_STACK,
         fontSize: '24px',
         color: '#fff8ef',
         stroke: '#0a0e14',
@@ -156,7 +157,7 @@ export class LevelEntryScene extends Phaser.Scene {
         wordWrap: { width: 240, useAdvancedWrap: true }
       })
       .setOrigin(0.5)
-      .setResolution(2)
+      .setResolution(uiTextResolution())
       .setShadow(0, 1, '#04070b', 3, false, true)
       .setAlpha(0)
       .setScale(0.92);
@@ -202,11 +203,11 @@ export class LevelEntryScene extends Phaser.Scene {
     copyCard.fillRoundedRect(centerX - 132, copyCardY, 264, copyCardHeight, 24);
     copyCard.strokeRoundedRect(centerX - 132, copyCardY, 264, copyCardHeight, 24);
     copyCard.fillStyle(entry.primaryColor, 0.07);
-    copyCard.fillRoundedRect(centerX - 116, copyCardY + 12, 232, 14, 12);
+    copyCard.fillRoundedRect(centerX - 116, copyCardY + 12, 232, 14, 7);
 
     const framing = this.add
       .text(centerX, copyCardY + 34, entry.framing, {
-        fontFamily: 'Avenir Next, Trebuchet MS, Verdana, sans-serif',
+        fontFamily: UI_FONT_STACK,
         fontSize: '17px',
         color: '#fff7ed',
         stroke: '#0a0e14',
@@ -215,25 +216,46 @@ export class LevelEntryScene extends Phaser.Scene {
         wordWrap: { width: 210, useAdvancedWrap: true }
       })
       .setOrigin(0.5)
-      .setResolution(2)
+      .setResolution(uiTextResolution())
       .setShadow(0, 1, '#04070b', 2, false, true)
       .setAlpha(0);
 
     const detail = this.add
       .text(centerX, copyCardY + 70, entry.detail, {
-        fontFamily: 'Avenir Next, Trebuchet MS, Verdana, sans-serif',
+        fontFamily: UI_FONT_STACK,
         fontSize: '12px',
         color: '#d4dde4',
         align: 'center',
         wordWrap: { width: 220, useAdvancedWrap: true }
       })
       .setOrigin(0.5)
-      .setResolution(2)
+      .setResolution(uiTextResolution())
       .setAlpha(0);
 
-    const line = this.add.graphics().setAlpha(0);
-    line.lineStyle(2, entry.primaryColor, 0.28);
-    line.lineBetween(centerX - 34, 142, centerX + 34, 142);
+    // Soft "light seed" separator: a gentle glowing core flanked by a fading
+    // path of light, replacing the raw divider line for a calmer, more premium
+    // transition that echoes the planet's returning light.
+    const separator = this.add.container(centerX, 142).setAlpha(0);
+    const separatorHalo = this.add
+      .ellipse(0, 0, 84, 14, entry.accentColor, 0.1)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    const separatorCore = this.add
+      .ellipse(0, 0, 7, 7, entry.accentColor, 0.85)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    const separatorCoreInner = this.add.ellipse(0, 0, 3, 3, 0xfff8ec, 0.95);
+    const separatorLeft = this.add.ellipse(-30, 0, 3, 3, entry.primaryColor, 0.42);
+    const separatorRight = this.add.ellipse(30, 0, 3, 3, entry.primaryColor, 0.42);
+    const separatorLeftFaint = this.add.ellipse(-52, 0, 2, 2, entry.primaryColor, 0.22);
+    const separatorRightFaint = this.add.ellipse(52, 0, 2, 2, entry.primaryColor, 0.22);
+    separator.add([
+      separatorHalo,
+      separatorCore,
+      separatorCoreInner,
+      separatorLeft,
+      separatorRight,
+      separatorLeftFaint,
+      separatorRightFaint
+    ]);
 
     const ctaPanel = this.add.graphics();
     const ctaWidth = 118;
@@ -245,11 +267,11 @@ export class LevelEntryScene extends Phaser.Scene {
     ctaPanel.fillRoundedRect(-ctaWidth * 0.5, -ctaHeight * 0.5, ctaWidth, ctaHeight, 14);
     ctaPanel.strokeRoundedRect(-ctaWidth * 0.5, -ctaHeight * 0.5, ctaWidth, ctaHeight, 14);
     ctaPanel.fillStyle(entry.accentColor, 0.05);
-    ctaPanel.fillRoundedRect(-ctaWidth * 0.5 + 8, -ctaHeight * 0.5 + 6, ctaWidth - 16, 8, 10);
+    ctaPanel.fillRoundedRect(-ctaWidth * 0.5 + 8, -ctaHeight * 0.5 + 6, ctaWidth - 16, 8, 4);
 
     const ctaText = this.add
       .text(0, 0, entry.cta, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
+        fontFamily: UI_FONT_STACK,
         fontSize: '13px',
         color: '#f7f6ec',
         stroke: '#0a1015',
@@ -257,7 +279,7 @@ export class LevelEntryScene extends Phaser.Scene {
         align: 'center'
       })
       .setOrigin(0.5)
-      .setResolution(2)
+      .setResolution(uiTextResolution())
       .setShadow(0, 1, '#04070b', 2, false, true);
 
     const ctaHit = this.add
@@ -308,9 +330,9 @@ export class LevelEntryScene extends Phaser.Scene {
     });
 
     this.tweens.add({
-      targets: line,
+      targets: separator,
       alpha: 1,
-      duration: 300,
+      duration: 360,
       delay: 320,
       ease: 'Quad.easeOut'
     });
@@ -375,8 +397,25 @@ export class LevelEntryScene extends Phaser.Scene {
       scaleY: 1,
       duration: 320,
       delay: 660,
-      ease: 'Back.easeOut'
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        // Gentle breathing pulse so a young player notices the button invites a
+        // tap. Kept subtle so it reads as calm, not as a flashing prompt.
+        this.tweens.add({
+          targets: ctaContainer,
+          scaleX: 1.045,
+          scaleY: 1.045,
+          duration: 920,
+          ease: 'Sine.easeInOut',
+          yoyo: true,
+          repeat: -1
+        });
+      }
     });
+
+    // Only the explicit CTA starts the level (see ctaHit above). Tapping the
+    // backdrop does nothing — intentional, so a stray tap never skips the
+    // chapter, mirroring the DOM cover's CTA-only behaviour.
   }
 
   private startJourney() {

@@ -21,7 +21,12 @@ body,
 
 body {
   min-height: 100dvh;
-  font-family: "Trebuchet MS", "Verdana", "Avenir Next", sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    "Avenir Next", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
   color: var(--ink);
   background:
     radial-gradient(circle at top, rgba(182, 255, 214, 0.16), transparent 30%),
@@ -93,7 +98,9 @@ body::before {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 14px;
+  /* No padding: the cover art fills the frame edge-to-edge. Title/copy/CTA and
+     the help button each carry their own env(safe-area-inset-*) spacing. */
+  padding: 0;
   background:
     radial-gradient(circle at 50% 18%, rgba(170, 255, 209, 0.18), transparent 24%),
     radial-gradient(circle at 52% 66%, rgba(255, 166, 124, 0.08), transparent 30%),
@@ -115,40 +122,31 @@ body::before {
   pointer-events: none;
 }
 
-.entry-shell[data-help="open"] .entry-shell__button {
+/* When help is open the CTA is inert, so a tap behind the overlay cannot
+   start the journey (the JS guard in startFromEntry backs this up). */
+.entry-shell[data-help="open"] .entry-flow__cta {
   pointer-events: none;
 }
 
-.entry-shell__button {
+/* Card wrapper is a plain container — NOT a button. It carries no padding so
+   the full-bleed cover art reaches the frame edges; text keeps its own
+   safe-area insets via .entry-flow__title-stage. */
+.entry-shell__stage {
+  position: relative;
   width: 100%;
   height: 100%;
-  appearance: none;
-  font: inherit;
-  pointer-events: auto;
-  touch-action: manipulation;
-  -webkit-tap-highlight-color: transparent;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: space-between;
-  position: relative;
-  gap: 14px;
-  padding: 18px 18px 16px;
-  border: 0;
   color: var(--ink);
-  background: transparent;
   text-align: center;
-}
-
-.entry-shell__button:active {
-  transform: scale(0.985);
 }
 
 .entry-shell__quick-actions {
   position: absolute;
-  top: calc(16px + env(safe-area-inset-top, 0px));
-  right: 14px;
-  z-index: 3;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  z-index: 5;
+  max-width: 44%;
   display: flex;
   flex-direction: column;
   align-items: flex-end;
@@ -158,18 +156,24 @@ body::before {
 
 .entry-shell__quick-action {
   appearance: none;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 999px;
-  background: rgba(10, 14, 20, 0.44);
+  background: rgba(10, 14, 20, 0.52);
   color: #fff5ea;
   font: inherit;
   font-size: 11px;
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0.04em;
-  padding: 10px 14px;
+  padding: 10px 16px;
   backdrop-filter: blur(8px);
   box-shadow: 0 10px 18px rgba(0, 0, 0, 0.18);
+  -webkit-tap-highlight-color: transparent;
   transition: background 180ms ease, border-color 180ms ease, opacity 180ms ease;
 }
 
@@ -625,6 +629,10 @@ body::before {
   position: relative;
   z-index: 1;
   align-self: center;
+  appearance: none;
+  cursor: pointer;
+  pointer-events: auto;
+  font-family: inherit;
   font-size: 14px;
   font-weight: 700;
   letter-spacing: 0.05em;
@@ -632,18 +640,39 @@ body::before {
   color: var(--acid);
   padding: 14px 30px;
   min-width: 170px;
+  min-height: 48px;
   border-radius: 99px;
   background: rgba(230, 255, 129, 0.14);
   border: 1px solid rgba(230, 255, 129, 0.28);
   margin-bottom: 0;
   backdrop-filter: blur(6px);
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.22);
+  -webkit-tap-highlight-color: transparent;
   transition: background 0.2s ease, transform 0.2s ease;
+  animation: cta-invite 2.6s ease-in-out infinite;
 }
 
-.entry-shell__button:active .entry-flow__cta {
-  background: rgba(230, 255, 129, 0.15);
-  transform: translateY(1px);
+.entry-flow__cta:active {
+  background: rgba(230, 255, 129, 0.22);
+  transform: translateY(1px) scale(0.98);
+  animation: none;
+}
+
+.entry-flow__cta:disabled {
+  opacity: 0.55;
+  animation: none;
+}
+
+@keyframes cta-invite {
+  0%,
+  100% {
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.22);
+    border-color: rgba(230, 255, 129, 0.28);
+  }
+  50% {
+    box-shadow: 0 10px 26px rgba(230, 255, 129, 0.22);
+    border-color: rgba(230, 255, 129, 0.5);
+  }
 }
 
 
@@ -901,12 +930,13 @@ body::before {
 @media (prefers-reduced-motion: reduce) {
   .entry-shell__planet-orbit,
   .entry-shell__planet,
-  .entry-shell__loader span {
+  .entry-shell__loader span,
+  .entry-flow__cta {
     animation: none;
   }
 
   .entry-shell,
-  .entry-shell__button,
+  .entry-shell__stage,
   .entry-flow__title-stage,
   #entry-loading,
   .hud,
