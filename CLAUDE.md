@@ -449,6 +449,15 @@ These three rules sit above ordinary implementation decisions. When a task seems
 
 ---
 
+## Operating protocol (aligned with La Manigua)
+
+- **Model routing** — declare the tier before each task: **Light** (Sonnet — mechanical, already-specified changes), **Medium** (Sonnet — verification, or a plan with defined steps), **High** (Fable — genuine ambiguity, undiagnosed problems, new architecture). Never spend more compute than the task needs; never at the cost of quality.
+- **What persists vs. what doesn't** — decisions, corrections, and principles a future session needs (like the Creative DNA section above) live here or in docs/memory/, not repeated in chat. One-off task instructions are given directly and aren't archived separately.
+- **Report signature** — close each slice summary with model + effort + date, so it's possible to see later which model handled what.
+- **Scale to fit** — this is one developer working with Claude Code, not a multi-agent production. Don't import a multi-surface topology here; the two points above are what actually transfer from the wider protocol.
+
+---
+
 ## Season 1 direction
 
 Season 1 should be achievable, coherent and emotionally complete.
