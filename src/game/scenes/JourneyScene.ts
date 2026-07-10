@@ -16,6 +16,8 @@ import { sessionState } from '@/game/state/sessionState';
 import { BackdropRenderer } from '@/game/systems/backdrop/BackdropRenderer';
 import { EmotionController } from '@/game/systems/emotion/EmotionController';
 import { GuidanceDirector } from '@/game/systems/guidance/GuidanceDirector';
+import { DiscoveryFlow } from '@/game/systems/overlays/DiscoveryFlow';
+import { FailFlow } from '@/game/systems/overlays/FailFlow';
 import { PauseFlow } from '@/game/systems/overlays/PauseFlow';
 import { RunnerLoopSystem, type RunnerLoopSnapshot } from '@/game/systems/runner/RunnerLoopSystem';
 import { createPanelButton } from '@/ui/panelButton';
@@ -40,12 +42,6 @@ const FINISH_CONTACT_BEAT_AT = 0.58;
 const FINISH_POST_CONTACT_FLOAT_RISE = 10;
 const FINISH_PANEL_REVEAL_AT = 0.94;
 const FINISH_SEQUENCE_SPEED = 1.85;
-const FAIL_TITLE = 'Aún hay luz.';
-const FAIL_BODY = 'El camino no se cierra.';
-const FAIL_CLOSING = 'Toca para volver.';
-const MOONLIGHT_FAIL_TITLE = 'Aún hay reflejo.';
-const MOONLIGHT_FAIL_BODY = 'La luna sigue ahí.';
-const MOONLIGHT_FAIL_CLOSING = 'Toca para volver.';
 const FINISH_CONTINUE_BUTTON_LABEL = 'Seguir';
 const MOONLIGHT_OPPORTUNITY_LINE = 'Queda una oportunidad.';
 const MOONLIGHT_OPPORTUNITY_PULSE = 0.46;
@@ -70,160 +66,6 @@ const HERO_AIR_RISE_THRESHOLD = -32;
 const HERO_AIR_FALL_THRESHOLD = 32;
 const HERO_AIR_APEX_DEADZONE = 12;
 const HERO_FOOTING_VISUAL_OFFSET_Y = 4;
-type DiscoveryBeatId =
-  | 'jump_intro'
-  | 'double_jump_intro'
-  | 'upper_route_intro'
-  | 'notes_intro'
-  | 'hazard_intro'
-  | 'reserve_hint'
-  | 'reserve_gain'
-  | 'reserve_spent'
-  | 'shark_sighting'
-  | 'shark_catch';
-type DiscoveryBeatDefinition =
-  | {
-      mode: 'guidance';
-      text: string;
-      durationMs?: number;
-    }
-  | {
-      mode: 'panel';
-      title: string;
-      body: string;
-      closing: string;
-    };
-const DISCOVERY_SESSION_STORAGE_KEY = 'cure-runner.discovery-beats.v1';
-let discoverySessionCache: Set<DiscoveryBeatId> | null = null;
-
-const getDiscoverySessionCache = () => {
-  if (discoverySessionCache) {
-    return discoverySessionCache;
-  }
-
-  const fallback = new Set<DiscoveryBeatId>();
-
-  if (typeof window === 'undefined') {
-    discoverySessionCache = fallback;
-    return discoverySessionCache;
-  }
-
-  try {
-    const raw = window.sessionStorage.getItem(DISCOVERY_SESSION_STORAGE_KEY);
-
-    if (!raw) {
-      discoverySessionCache = fallback;
-      return discoverySessionCache;
-    }
-
-    const parsed = JSON.parse(raw);
-
-    if (!Array.isArray(parsed)) {
-      discoverySessionCache = fallback;
-      return discoverySessionCache;
-    }
-
-    discoverySessionCache = new Set(parsed as DiscoveryBeatId[]);
-    return discoverySessionCache;
-  } catch {
-    discoverySessionCache = fallback;
-    return discoverySessionCache;
-  }
-};
-
-const hasSeenDiscoveryBeat = (beatId: DiscoveryBeatId) => getDiscoverySessionCache().has(beatId);
-
-const rememberDiscoveryBeat = (beatId: DiscoveryBeatId) => {
-  const cache = getDiscoverySessionCache();
-
-  if (cache.has(beatId)) {
-    return;
-  }
-
-  cache.add(beatId);
-
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  try {
-    window.sessionStorage.setItem(DISCOVERY_SESSION_STORAGE_KEY, JSON.stringify([...cache]));
-  } catch {
-    // Ignore storage failures and keep the in-memory session cache.
-  }
-};
-
-const forgetDiscoveryBeat = (beatId: DiscoveryBeatId) => {
-  const cache = getDiscoverySessionCache();
-
-  if (!cache.delete(beatId) || typeof window === 'undefined') {
-    return;
-  }
-
-  try {
-    window.sessionStorage.setItem(DISCOVERY_SESSION_STORAGE_KEY, JSON.stringify([...cache]));
-  } catch {
-    // Ignore storage failures and keep the in-memory session cache.
-  }
-};
-
-const DISCOVERY_BEATS: Record<DiscoveryBeatId, DiscoveryBeatDefinition> = {
-  jump_intro: {
-    mode: 'guidance',
-    text: 'Salta el barro.',
-    durationMs: 2200
-  },
-  double_jump_intro: {
-    mode: 'guidance',
-    text: 'Toca otra vez.',
-    durationMs: 2200
-  },
-  upper_route_intro: {
-    mode: 'guidance',
-    text: 'Una más para subir.',
-    durationMs: 2300
-  },
-  notes_intro: {
-    mode: 'panel',
-    title: 'Notas.',
-    body: 'Cada nota despierta el planeta.',
-    closing: 'Y llena la reserva.'
-  },
-  hazard_intro: {
-    mode: 'panel',
-    title: 'Golpe.',
-    body: 'Te quita aire.',
-    closing: 'Mide el salto.'
-  },
-  reserve_hint: {
-    mode: 'guidance',
-    text: 'Cien notas dan reserva.',
-    durationMs: 2400
-  },
-  reserve_gain: {
-    mode: 'panel',
-    title: 'Reserva.',
-    body: 'Ganaste una reserva.',
-    closing: 'Te salva una vez.'
-  },
-  reserve_spent: {
-    mode: 'panel',
-    title: 'Reserva.',
-    body: 'Se usó la reserva.',
-    closing: 'Ya no queda.'
-  },
-  shark_sighting: {
-    mode: 'guidance',
-    text: 'Hay aire arriba.',
-    durationMs: 2000
-  },
-  shark_catch: {
-    mode: 'panel',
-    title: 'Tiburoncín.',
-    body: 'Devuelve aire si falta.',
-    closing: 'Alcánzalo arriba.'
-  }
-};
 type HeroTextureKey =
   | typeof heroProfile.textureKey
   | typeof HERO_HIT_TEXTURE_KEY
@@ -258,14 +100,9 @@ export class JourneyScene extends Phaser.Scene {
   private continueStage!: Phaser.GameObjects.Container;
   private finishReward!: Phaser.GameObjects.Container;
   private finishMessage!: Phaser.GameObjects.Container;
-  private failStage!: Phaser.GameObjects.Container;
-  private discoveryOverlay!: Phaser.GameObjects.Rectangle;
-  private discoveryStage!: Phaser.GameObjects.Container;
-  private discoveryTitleText!: Phaser.GameObjects.Text;
-  private discoveryBodyText!: Phaser.GameObjects.Text;
-  private discoveryClosingText!: Phaser.GameObjects.Text;
   private pauseFlow!: PauseFlow;
-  private retryOverlay!: Phaser.GameObjects.Rectangle;
+  private discoveryFlow!: DiscoveryFlow;
+  private failFlow!: FailFlow;
   private runnerLoop!: RunnerLoopSystem;
   private shark!: Phaser.GameObjects.Container;
   private sharkShadow!: Phaser.GameObjects.Ellipse;
@@ -281,9 +118,7 @@ export class JourneyScene extends Phaser.Scene {
   private continueResolved = false;
   private finishSequence = 0;
   private finishAwakeningBeatShown = false;
-  private failResolved = false;
   private victoryFrozen = false;
-  private restartQueued = false;
   private returnHomeQueued = false;
   private hitReactionTimer = 0;
   private hitReactionDuration = 0.56;
@@ -304,8 +139,6 @@ export class JourneyScene extends Phaser.Scene {
   private sharkGuidanceIndex = 0;
   private lastSeenPhraseId = '';
   private readonly guidance = new GuidanceDirector();
-  private activeDiscoveryBeatId: DiscoveryBeatId | null = null;
-  private queuedDiscoveryBeatId: DiscoveryBeatId | null = null;
   private offAudioCue?: () => void;
   private moonlightOpportunityAvailable = false;
 
@@ -332,9 +165,7 @@ export class JourneyScene extends Phaser.Scene {
     this.continueResolved = false;
     this.finishSequence = 0;
     this.finishAwakeningBeatShown = false;
-    this.failResolved = false;
     this.victoryFrozen = false;
-    this.restartQueued = false;
     this.returnHomeQueued = false;
     this.hitReactionTimer = 0;
     this.hitReactionStrength = 0;
@@ -350,8 +181,6 @@ export class JourneyScene extends Phaser.Scene {
     this.sharkGuidanceIndex = 0;
     this.lastSeenPhraseId = '';
     this.guidance.reset();
-    this.activeDiscoveryBeatId = null;
-    this.queuedDiscoveryBeatId = null;
     this.moonlightOpportunityAvailable = this.stage.backdropKind === 'moonlight-mountain';
 
     this.emitVictoryState(false);
@@ -399,46 +228,64 @@ export class JourneyScene extends Phaser.Scene {
       .setAlpha(0)
       .setScale(0.88);
     this.continueStage = this.createContinueStage(width * 0.5, 148);
-    this.failStage = this.createFailStage(width * 0.5, 316);
-    this.discoveryOverlay = this.add
-      .rectangle(width * 0.5, journeyConfig.logicalSize.height * 0.5, width, journeyConfig.logicalSize.height, 0x071018, 0.001)
-      .setDepth(6.58)
-      .setAlpha(0)
-      .setVisible(false)
-      .setInteractive();
-    this.discoveryOverlay.on(
-      'pointerdown',
-      (
-        _pointer: Phaser.Input.Pointer,
-        _localX: number,
-        _localY: number,
-        event: Phaser.Types.Input.EventData
-      ) => {
-        event.stopPropagation();
-      }
-    );
-    this.discoveryOverlay.disableInteractive();
-    const discoveryStage = this.createDiscoveryStage(width * 0.5, 312);
-    this.discoveryStage = discoveryStage.container;
-    this.discoveryTitleText = discoveryStage.title;
-    this.discoveryBodyText = discoveryStage.body;
-    this.discoveryClosingText = discoveryStage.closing;
+    this.discoveryFlow = new DiscoveryFlow(this, {
+      canShow: () => !this.failFlow.isResolved() && !this.finishResolved,
+      setRunFrozen: (frozen) => this.runnerLoop.setFrozen(frozen),
+      emitFocusMode: (active) => this.emitFocusMode(active),
+      emitGuidanceLine: (text, durationMs, time) => this.emitGuidanceLine(text, durationMs, time),
+      markGuidanceMoment: (time) => {
+        this.lastGuidanceAt = time;
+      },
+      resumeIfAllowed: () => {
+        if (this.failFlow.isResolved() || this.finishResolved || this.victoryFrozen) {
+          return;
+        }
+
+        this.runnerLoop.setFrozen(false);
+        this.emitFocusMode(false);
+
+        // Start any deferred shark-rescue grace now that the run has resumed,
+        // so the grace window is felt in play rather than ticking down while frozen.
+        if (this.pendingSharkGrace > 0) {
+          this.runnerLoop.grantGrace(this.pendingSharkGrace);
+          this.pendingSharkGrace = 0;
+        }
+      },
+      returnToStart: () => this.returnToStart()
+    });
     this.pauseFlow = new PauseFlow(this, {
-      canPause: () => !this.failResolved && !this.finishResolved && !this.returnHomeQueued,
-      isDiscoveryBeatActive: () => this.activeDiscoveryBeatId !== null,
+      canPause: () => !this.failFlow.isResolved() && !this.finishResolved && !this.returnHomeQueued,
+      isDiscoveryBeatActive: () => this.discoveryFlow.isActive(),
       canRestoreRun: () =>
-        !this.failResolved && !this.finishResolved && !this.activeDiscoveryBeatId,
+        !this.failFlow.isResolved() && !this.finishResolved && !this.discoveryFlow.isActive(),
       setRunFrozen: (frozen) => this.runnerLoop.setFrozen(frozen),
       haltShark: () => this.haltSharkEvent(),
       emitFocusMode: (active) => this.emitFocusMode(active),
       replayCurrentStage: () => this.replayCurrentStage(),
       returnToStart: () => this.returnToStart()
     });
-    this.retryOverlay = this.add
-      .rectangle(width * 0.5, journeyConfig.logicalSize.height * 0.5, width, journeyConfig.logicalSize.height, 0x000000, 0.001)
-      .setDepth(6.76)
-      .setAlpha(0)
-      .setVisible(false);
+    this.failFlow = new FailFlow(this, this.stage.backdropKind === 'moonlight-mountain', this.showDebug, {
+      canFail: () => !this.finishResolved,
+      closePause: () => this.pauseFlow.close(false),
+      hideDiscovery: () => this.discoveryFlow.hide(),
+      hideFinishPreview: () => {
+        this.finishStage.setAlpha(0);
+        this.continueStage.setAlpha(0);
+        this.ingredient.setAlpha(0);
+      },
+      haltShark: () => this.haltSharkEvent(),
+      emitFocusMode: (active) => this.emitFocusMode(active),
+      clearHitReaction: () => {
+        this.hitReactionTimer = 0;
+        this.hitPoseLockTimer = 0;
+      },
+      restartRun: () => {
+        this.emitFocusMode(false);
+        sessionState.restartRun();
+        this.scene.restart({ stage: this.stageKey });
+      },
+      returnToStart: () => this.returnToStart()
+    });
     this.sharkShadow = this.add
       .ellipse(-120, runnerConfig.visual.groundLineY - 44, 58, 12, 0x09080d, 0.1)
       .setDepth(4.45)
@@ -453,7 +300,7 @@ export class JourneyScene extends Phaser.Scene {
 
     if (this.stage.introGuidance && this.guidance.showOnce('stage_intro')) {
       this.time.delayedCall(420, () => {
-        if (!this.failResolved && !this.finishResolved) {
+        if (!this.failFlow.isResolved() && !this.finishResolved) {
           this.emitGuidanceLine(this.stage.introGuidance!, 2100, this.time.now);
         }
       });
@@ -482,9 +329,9 @@ export class JourneyScene extends Phaser.Scene {
     this.runnerLoop.update(deltaSeconds, time, mood, snapshot.displayLevel);
     const loopSnapshot = this.runnerLoop.snapshot();
 
-    if (loopSnapshot.runFailed && !this.failResolved && !this.finishResolved) {
+    if (loopSnapshot.runFailed && !this.failFlow.isResolved() && !this.finishResolved) {
       if (!this.tryMoonlightOpportunity()) {
-        this.beginFailureBeat();
+        this.failFlow.begin();
       }
     }
 
@@ -528,14 +375,14 @@ export class JourneyScene extends Phaser.Scene {
       awakeningFeedback: this.feedback.awakening
     });
 
-    if (!this.failResolved && !this.finishResolved && !this.activeDiscoveryBeatId) {
+    if (!this.failFlow.isResolved() && !this.finishResolved && !this.discoveryFlow.isActive()) {
       this.updateSharkEvent(time, deltaSeconds, loopSnapshot);
       this.updateGuidanceMoments(time, loopSnapshot);
       this.updateDoubleJumpHint(time, loopSnapshot);
     }
 
     this.updateFinishObjects(time, loopSnapshot);
-    this.updateFailureObjects();
+    this.failFlow.update();
 
     const runBob = loopSnapshot.grounded
       ? Math.sin(loopSnapshot.distanceTravelled * 0.095) * (2 + snapshot.displayLevel * 3.6)
@@ -612,7 +459,7 @@ export class JourneyScene extends Phaser.Scene {
     // Subtle i-frame blink during the grace window so the player can read that
     // they are briefly safe after a hit/recovery. Never during finish/fail.
     const inGraceWindow =
-      !this.finishResolved && !this.failResolved && loopSnapshot.invulnerabilitySeconds > 0;
+      !this.finishResolved && !this.failFlow.isResolved() && loopSnapshot.invulnerabilitySeconds > 0;
     this.hero.setAlpha(inGraceWindow ? 0.6 + 0.4 * Math.abs(Math.sin(time * 0.022)) : 1);
 
     this.hero.rotation = Phaser.Math.Linear(
@@ -674,7 +521,7 @@ export class JourneyScene extends Phaser.Scene {
         this.feedback.collect = Math.max(this.feedback.collect, Math.min(1, event.intensity * 0.5));
 
         if (this.guidance.showOnce('notes_intro')) {
-          this.triggerDiscoveryBeat('notes_intro', this.time.now);
+          this.discoveryFlow.trigger('notes_intro', this.time.now);
         }
       }
 
@@ -683,7 +530,7 @@ export class JourneyScene extends Phaser.Scene {
 
         if (
           this.stage.beatGuidance &&
-          !this.failResolved &&
+          !this.failFlow.isResolved() &&
           !this.finishResolved &&
           this.guidance.showOnce('stage_beat')
         ) {
@@ -698,7 +545,7 @@ export class JourneyScene extends Phaser.Scene {
         const state = sessionState.snapshot();
         const runFailed = this.runnerLoop.snapshot().runFailed;
 
-        if (!runFailed && !this.failResolved && !this.finishResolved) {
+        if (!runFailed && !this.failFlow.isResolved() && !this.finishResolved) {
           if (state.currentPulse <= runnerConfig.obstacle.pulseLoss + 0.03) {
             this.showHitReaction(SECOND_HIT_REACTION, 1);
           } else {
@@ -707,7 +554,7 @@ export class JourneyScene extends Phaser.Scene {
         }
 
         if (!runFailed && this.guidance.showOnce('hazard_intro')) {
-          this.triggerDiscoveryBeat('hazard_intro', this.time.now);
+          this.discoveryFlow.trigger('hazard_intro', this.time.now);
         }
       }
 
@@ -722,9 +569,9 @@ export class JourneyScene extends Phaser.Scene {
         this.feedback.collect = Math.max(this.feedback.collect, 0.34);
         this.feedback.awakening = Math.max(this.feedback.awakening, 0.24);
 
-        if (!this.failResolved && !this.finishResolved) {
+        if (!this.failFlow.isResolved() && !this.finishResolved) {
           if (this.guidance.showOnce('reserve_gain')) {
-            this.triggerDiscoveryBeat('reserve_gain', this.time.now);
+            this.discoveryFlow.trigger('reserve_gain', this.time.now);
           } else {
             this.emitGuidanceLine('Reserva lista.', 2000, this.time.now);
           }
@@ -735,8 +582,8 @@ export class JourneyScene extends Phaser.Scene {
         this.feedback.collect = Math.max(this.feedback.collect, 0.26);
         this.feedback.awakening = Math.max(this.feedback.awakening, 0.14);
 
-        if (!this.failResolved && !this.finishResolved && this.guidance.showOnce('reserve_spent')) {
-          this.triggerDiscoveryBeat('reserve_spent', this.time.now);
+        if (!this.failFlow.isResolved() && !this.finishResolved && this.guidance.showOnce('reserve_spent')) {
+          this.discoveryFlow.trigger('reserve_spent', this.time.now);
         }
       }
     });
@@ -744,7 +591,7 @@ export class JourneyScene extends Phaser.Scene {
 
   private handleShutdown() {
     this.pauseFlow.destroy();
-    this.hideDiscoveryStage();
+    this.discoveryFlow.hide();
     this.emitVictoryState(false);
     this.emitFocusMode(false);
     this.offAudioCue?.();
@@ -1230,171 +1077,8 @@ export class JourneyScene extends Phaser.Scene {
       .setScale(0.9);
   }
 
-  private createDiscoveryStage(x: number, y: number) {
-    const panel = this.add.graphics();
-    panel.fillStyle(0x0b1117, 0.96);
-    panel.lineStyle(2, 0xdce9d6, 0.11);
-    panel.fillRoundedRect(-118, -80, 236, 176, 22);
-    panel.strokeRoundedRect(-118, -80, 236, 176, 22);
-    panel.lineStyle(1, 0xf7fff0, 0.025);
-    panel.strokeRoundedRect(-110, -72, 220, 160, 18);
-    panel.fillStyle(0xf1ffbe, 0.028);
-    panel.fillEllipse(0, -40, 84, 24);
-    panel.fillStyle(0xd8f4df, 0.026);
-    panel.fillCircle(-78, -42, 2);
-    panel.fillCircle(78, -42, 2);
-
-    const title = this.add
-      .text(0, -42, 'Notas.', {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '18px',
-        color: '#f2ffbe',
-        stroke: '#081018',
-        strokeThickness: 2,
-        align: 'center'
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#03060a', 3, false, true);
-    const body = this.add
-      .text(0, -2, 'Cada nota despierta el planeta.', {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '14px',
-        color: '#fff7ec',
-        stroke: '#091018',
-        strokeThickness: 1,
-        align: 'center',
-        wordWrap: { width: 186, useAdvancedWrap: true },
-        lineSpacing: 3
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const closing = this.add
-      .text(0, 32, 'Y llena la reserva.', {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '12px',
-        color: '#cfe8d9',
-        stroke: '#091018',
-        strokeThickness: 1,
-        align: 'center',
-        wordWrap: { width: 184, useAdvancedWrap: true },
-        lineSpacing: 3
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const continueButton = createPanelButton(
-      this,
-      CONTINUE_BUTTON_LABEL,
-      98,
-      () => this.dismissDiscoveryBeat(),
-      '11px'
-    );
-    const homeButton = createPanelButton(
-      this,
-      HOME_BUTTON_LABEL,
-      112,
-      () => this.returnToStart(),
-      '11px'
-    );
-
-    continueButton.setPosition(-54, 78);
-    homeButton.setPosition(58, 78);
-
-    return {
-      container: this.add
-        .container(x, y, [panel, title, body, closing, continueButton, homeButton])
-        .setDepth(6.64)
-        .setAlpha(0)
-        .setScale(0.92)
-        .setVisible(false),
-      title,
-      body,
-      closing
-    };
-  }
-
-  private createFailStage(x: number, y: number) {
-    const panel = this.add.graphics();
-    panel.fillStyle(0x10151d, 0.96);
-    panel.lineStyle(2, 0xdce9d6, 0.1);
-    panel.fillRoundedRect(-118, -80, 236, 176, 20);
-    panel.strokeRoundedRect(-118, -80, 236, 176, 20);
-    panel.lineStyle(1, 0xf7fff0, 0.018);
-    panel.strokeRoundedRect(-110, -72, 220, 160, 16);
-    panel.fillStyle(0xf1ffbe, 0.024);
-    panel.fillEllipse(0, -28, 72, 20);
-    panel.fillStyle(0xd8f4df, 0.03);
-    panel.fillCircle(-80, -30, 2);
-    panel.fillCircle(80, -30, 2);
-
-    const title = this.add
-      .text(0, -34, this.stage.backdropKind === 'moonlight-mountain' ? MOONLIGHT_FAIL_TITLE : FAIL_TITLE, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '17px',
-        color: '#fff8ef',
-        stroke: '#091018',
-        strokeThickness: 2,
-        align: 'center'
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 3, false, true);
-    const body = this.add
-      .text(0, 2, this.stage.backdropKind === 'moonlight-mountain' ? MOONLIGHT_FAIL_BODY : FAIL_BODY, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '14px',
-        color: '#f3f0e8',
-        stroke: '#091018',
-        strokeThickness: 1,
-        align: 'center',
-        wordWrap: { width: 182, useAdvancedWrap: true },
-        lineSpacing: 3
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const closing = this.add
-      .text(0, 34, this.stage.backdropKind === 'moonlight-mountain' ? MOONLIGHT_FAIL_CLOSING : FAIL_CLOSING, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '12px',
-        color: '#cfe8d9',
-        stroke: '#091018',
-        strokeThickness: 1,
-        align: 'center'
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const replayButton = createPanelButton(
-      this,
-      REPLAY_BUTTON_LABEL,
-      98,
-      () => this.triggerRestartFromFailure(),
-      '11px'
-    );
-    const homeButton = createPanelButton(
-      this,
-      HOME_BUTTON_LABEL,
-      108,
-      () => this.returnToStart(),
-      '11px'
-    );
-
-    replayButton.setPosition(-56, 82);
-    homeButton.setPosition(56, 82);
-
-    return this.add
-      .container(x, y, [panel, title, body, closing, replayButton, homeButton])
-      .setDepth(6.62)
-      .setAlpha(0)
-      .setScale(0.92)
-      .setSize(236, 176);
-  }
-
   private updateFinishObjects(time: number, loopSnapshot: RunnerLoopSnapshot) {
-    if (this.failResolved && !this.finishResolved) {
+    if (this.failFlow.isResolved() && !this.finishResolved) {
       this.ingredient.setAlpha(0);
       this.finishReward.setAlpha(0);
       this.finishStage.setAlpha(0);
@@ -1567,17 +1251,6 @@ export class JourneyScene extends Phaser.Scene {
     }
   }
 
-  private updateFailureObjects() {
-    const targetAlpha = this.failResolved ? 1 : 0;
-    const targetScale = this.failResolved ? 1 : 0.92;
-    const targetY = this.failResolved ? 308 : 316;
-
-    this.failStage
-      .setAlpha(Phaser.Math.Linear(this.failStage.alpha, targetAlpha, 0.16))
-      .setScale(Phaser.Math.Linear(this.failStage.scaleX, targetScale, 0.16))
-      .setPosition(this.failStage.x, Phaser.Math.Linear(this.failStage.y, targetY, 0.16));
-  }
-
   private tryMoonlightOpportunity() {
     if (!this.moonlightOpportunityAvailable || this.stage.backdropKind !== 'moonlight-mountain') {
       return false;
@@ -1614,7 +1287,7 @@ export class JourneyScene extends Phaser.Scene {
     this.finishPulse = 1;
     this.hitReactionTimer = 0;
     this.hitPoseLockTimer = 0;
-    this.hideDiscoveryStage();
+    this.discoveryFlow.hide();
     this.haltSharkEvent();
     this.emitFocusMode(true);
     this.emitVictoryState(true);
@@ -1628,91 +1301,6 @@ export class JourneyScene extends Phaser.Scene {
     this.children.bringToTop(this.finishReward);
     this.children.bringToTop(this.finishStage);
 
-  }
-
-  private beginFailureBeat() {
-    if (this.failResolved || this.finishResolved) {
-      return;
-    }
-
-    this.pauseFlow.close(false);
-    this.failResolved = true;
-    this.restartQueued = false;
-    this.hitReactionTimer = 0;
-    this.hitPoseLockTimer = 0;
-    this.hideDiscoveryStage();
-    this.finishStage.setAlpha(0);
-    this.continueStage.setAlpha(0);
-    this.ingredient.setAlpha(0);
-    this.input.enabled = true;
-    this.children.bringToTop(this.retryOverlay);
-    this.children.bringToTop(this.failStage);
-    this.retryOverlay
-      .setVisible(true)
-      .setAlpha(0.001)
-      .setInteractive()
-      .off('pointerdown', this.restartFromFailure, this)
-      .on('pointerdown', this.restartFromFailure, this);
-    this.haltSharkEvent();
-    this.emitFocusMode(true);
-  }
-
-  private restartFromFailure(pointer: Phaser.Input.Pointer) {
-    this.logRetryDebug('retry target hit', {
-      button: pointer.button,
-      failResolved: this.failResolved,
-      inputEnabled: this.input.enabled,
-      restartQueued: this.restartQueued,
-      x: Math.round(pointer.x),
-      y: Math.round(pointer.y)
-    });
-
-    if (!pointer.wasTouch && pointer.button !== 0) {
-      this.logRetryDebug('restart ignored', {
-        button: pointer.button,
-        reason: 'non-primary pointer'
-      });
-      return;
-    }
-
-    if (!this.failResolved) {
-      this.logRetryDebug('restart ignored', {
-        reason: 'fail-state not active'
-      });
-      return;
-    }
-
-    if (!this.input.enabled) {
-      this.logRetryDebug('restart ignored', {
-        reason: 'scene input disabled'
-      });
-      return;
-    }
-
-    if (this.restartQueued) {
-      this.logRetryDebug('retry guard active', {
-        reason: 'restart already queued'
-      });
-      return;
-    }
-
-    this.restartQueued = true;
-    this.time.delayedCall(0, this.triggerRestartFromFailure, undefined, this);
-  }
-
-  private triggerRestartFromFailure() {
-    if (!this.failResolved) {
-      this.restartQueued = false;
-      this.logRetryDebug('restart ignored', {
-        reason: 'fail-state cleared before restart'
-      });
-      return;
-    }
-
-    this.logRetryDebug('restart actually triggered');
-    this.emitFocusMode(false);
-    sessionState.restartRun();
-    this.scene.restart({ stage: this.stageKey });
   }
 
   private showHitReaction(text: string, strength: number) {
@@ -1797,7 +1385,7 @@ export class JourneyScene extends Phaser.Scene {
   }
 
   private updateHitReaction() {
-    if (this.hitReactionTimer <= 0 || this.failResolved || this.finishResolved) {
+    if (this.hitReactionTimer <= 0 || this.failFlow.isResolved() || this.finishResolved) {
       this.hitReaction.setAlpha(0).setVisible(false);
       return;
     }
@@ -1945,156 +1533,6 @@ export class JourneyScene extends Phaser.Scene {
     );
   }
 
-  private triggerDiscoveryBeat(beatId: DiscoveryBeatId, time: number) {
-    if (hasSeenDiscoveryBeat(beatId)) {
-      return;
-    }
-
-    const beat = DISCOVERY_BEATS[beatId];
-
-    if (beat.mode === 'guidance') {
-      if (this.failResolved || this.finishResolved || this.activeDiscoveryBeatId) {
-        return;
-      }
-
-      rememberDiscoveryBeat(beatId);
-      this.emitGuidanceLine(beat.text, beat.durationMs ?? 1800, time);
-      return;
-    }
-
-    this.presentDiscoveryBeat(beatId, beat);
-  }
-
-  private presentDiscoveryBeat(
-    beatId: DiscoveryBeatId,
-    beat: Extract<DiscoveryBeatDefinition, { mode: 'panel' }>
-  ) {
-    if (this.failResolved || this.finishResolved) {
-      return;
-    }
-
-    if (this.activeDiscoveryBeatId) {
-      if (this.activeDiscoveryBeatId !== beatId) {
-        this.queuedDiscoveryBeatId = beatId;
-      }
-      return;
-    }
-
-    rememberDiscoveryBeat(beatId);
-    this.activeDiscoveryBeatId = beatId;
-    this.queuedDiscoveryBeatId = null;
-    this.lastGuidanceAt = this.time.now;
-    this.discoveryTitleText.setText(beat.title);
-    this.discoveryBodyText.setText(beat.body);
-    this.discoveryClosingText.setText(beat.closing);
-    this.runnerLoop.setFrozen(true);
-    this.emitFocusMode(true);
-    this.discoveryOverlay.setVisible(true).setAlpha(0.001).setInteractive();
-    this.discoveryStage.setVisible(true).setAlpha(0).setScale(0.92);
-    this.children.bringToTop(this.discoveryOverlay);
-    this.children.bringToTop(this.discoveryStage);
-    this.tweens.killTweensOf(this.discoveryOverlay);
-    this.tweens.killTweensOf(this.discoveryStage);
-    this.tweens.add({
-      targets: this.discoveryOverlay,
-      alpha: 0.24,
-      duration: 160,
-      ease: 'Quad.easeOut'
-    });
-    this.tweens.add({
-      targets: this.discoveryStage,
-      alpha: 0.98,
-      scaleX: 0.98,
-      scaleY: 0.98,
-      duration: 190,
-      ease: 'Back.easeOut'
-    });
-    this.cameras.main.zoomTo(1.02, 170, 'Cubic.easeOut');
-  }
-
-  private dismissDiscoveryBeat() {
-    if (!this.activeDiscoveryBeatId) {
-      return;
-    }
-
-    const nextBeat = this.queuedDiscoveryBeatId;
-    this.activeDiscoveryBeatId = null;
-    this.queuedDiscoveryBeatId = null;
-    this.lastGuidanceAt = this.time.now;
-    this.tweens.killTweensOf(this.discoveryOverlay);
-    this.tweens.killTweensOf(this.discoveryStage);
-    this.tweens.add({
-      targets: this.discoveryOverlay,
-      alpha: 0,
-      duration: 120,
-      ease: 'Quad.easeIn',
-      onComplete: () => {
-        this.discoveryOverlay.disableInteractive();
-        this.discoveryOverlay.setVisible(false);
-      }
-    });
-    this.tweens.add({
-      targets: this.discoveryStage,
-      alpha: 0,
-      scaleX: 0.92,
-      scaleY: 0.92,
-      duration: 140,
-      ease: 'Quad.easeIn',
-      onComplete: () => {
-        this.discoveryStage.setVisible(false);
-
-        if (nextBeat && !this.failResolved && !this.finishResolved) {
-          this.triggerDiscoveryBeat(nextBeat, this.time.now);
-        }
-      }
-    });
-
-    if (!nextBeat && !this.failResolved && !this.finishResolved && !this.victoryFrozen) {
-      this.runnerLoop.setFrozen(false);
-      this.emitFocusMode(false);
-
-      // Start any deferred shark-rescue grace now that the run has resumed, so
-      // the grace window is felt in play rather than ticking down while frozen.
-      if (this.pendingSharkGrace > 0) {
-        this.runnerLoop.grantGrace(this.pendingSharkGrace);
-        this.pendingSharkGrace = 0;
-      }
-    }
-
-    if (!nextBeat) {
-      this.cameras.main.zoomTo(1, 170, 'Cubic.easeOut');
-    }
-  }
-
-  private hideDiscoveryStage() {
-    if (this.activeDiscoveryBeatId) {
-      forgetDiscoveryBeat(this.activeDiscoveryBeatId);
-    }
-
-    this.activeDiscoveryBeatId = null;
-    this.queuedDiscoveryBeatId = null;
-
-    // During scene.restart(), Phaser tears down plugins and cameras
-    // before firing SHUTDOWN. Guard every scene-owned access.
-    if (this.tweens) {
-      this.tweens.killTweensOf(this.discoveryOverlay);
-      this.tweens.killTweensOf(this.discoveryStage);
-    }
-
-    if (this.discoveryOverlay?.scene) {
-      this.discoveryOverlay.disableInteractive();
-      this.discoveryOverlay.setAlpha(0).setVisible(false);
-    }
-
-    if (this.discoveryStage?.scene) {
-      this.discoveryStage.setAlpha(0).setScale(0.92).setVisible(false);
-    }
-
-    if (this.cameras?.main) {
-      this.cameras.main.zoomTo(1, 120, 'Cubic.easeOut');
-    }
-  }
-
   private updateGuidanceMoments(time: number, loopSnapshot: RunnerLoopSnapshot) {
     const phraseChanged = loopSnapshot.currentPhraseId !== this.lastSeenPhraseId;
 
@@ -2104,7 +1542,7 @@ export class JourneyScene extends Phaser.Scene {
       time - this.lastGuidanceAt > 1400 &&
       this.guidance.showOnce('jump_intro')
     ) {
-      this.triggerDiscoveryBeat('jump_intro', time);
+      this.discoveryFlow.trigger('jump_intro', time);
     }
 
     if (
@@ -2113,7 +1551,7 @@ export class JourneyScene extends Phaser.Scene {
       time - this.lastGuidanceAt > 1800 &&
       this.guidance.showOnce('reserve_hint')
     ) {
-      this.triggerDiscoveryBeat('reserve_hint', time);
+      this.discoveryFlow.trigger('reserve_hint', time);
     }
 
     if (
@@ -2122,7 +1560,7 @@ export class JourneyScene extends Phaser.Scene {
       time - this.lastGuidanceAt > 2200 &&
       this.guidance.showOnce('upper_route_intro')
     ) {
-      this.triggerDiscoveryBeat('upper_route_intro', time);
+      this.discoveryFlow.trigger('upper_route_intro', time);
     }
 
     if (
@@ -2158,7 +1596,7 @@ export class JourneyScene extends Phaser.Scene {
       time - this.lastGuidanceAt > 2200
     ) {
       this.guidance.markShown('double_jump_intro');
-      this.triggerDiscoveryBeat('double_jump_intro', time);
+      this.discoveryFlow.trigger('double_jump_intro', time);
     }
   }
 
@@ -2207,7 +1645,7 @@ export class JourneyScene extends Phaser.Scene {
         // Only marked when the beat actually shows: a spawn suppressed by the
         // guidance cooldown leaves the first-window semantics intact.
         if (time - this.lastGuidanceAt > 1800 && this.guidance.showOnce('shark_sighting')) {
-          this.triggerDiscoveryBeat('shark_sighting', time);
+          this.discoveryFlow.trigger('shark_sighting', time);
         }
       }
 
@@ -2258,13 +1696,14 @@ export class JourneyScene extends Phaser.Scene {
         sessionState.pulse(pulseRestore);
       }
 
-      if (firstRescue && !hasSeenDiscoveryBeat('shark_catch')) {
+      if (firstRescue && !this.discoveryFlow.hasSeenBeat('shark_catch')) {
         this.guidance.markShown('shark_catch');
         // First rescue: the shark_catch panel beat freezes the run as a readable
         // "rescue moment". Defer grace until that beat resolves (post-resume) so
-        // it is not spent while time is frozen — applied in dismissDiscoveryBeat.
+        // it is not spent while time is frozen — applied in DiscoveryFlow's
+        // resumeIfAllowed host callback.
         this.pendingSharkGrace = 0.8;
-        this.triggerDiscoveryBeat('shark_catch', time);
+        this.discoveryFlow.trigger('shark_catch', time);
       } else {
         // Either a later rescue, or the rescue beat was already seen this session
         // (no freeze). The gift is the restored air; grant grace only if the hero
@@ -2388,7 +1827,7 @@ export class JourneyScene extends Phaser.Scene {
             grounded: loopSnapshot.grounded,
             hazards: activeHazards,
             decor: this.getDecorativeDebugLabels().join(', '),
-            retry: this.getRetryDebugState()
+            retry: this.failFlow.getDebugState()
           }
         })
       );
@@ -2396,23 +1835,7 @@ export class JourneyScene extends Phaser.Scene {
     }
   }
 
-  private getRetryDebugState() {
-    if (!this.failResolved) {
-      return 'idle';
-    }
-
-    return this.restartQueued ? 'queued' : 'ready';
-  }
-
   private getDecorativeDebugLabels() {
     return DEBUG_DECORATIVE_FAMILIES.filter((label) => label !== 'shark-friend' || this.shark.visible);
-  }
-
-  private logRetryDebug(message: string, details?: Record<string, unknown>) {
-    if (!this.showDebug) {
-      return;
-    }
-
-    console.info('[retry-flow]', message, details ?? {});
   }
 }
