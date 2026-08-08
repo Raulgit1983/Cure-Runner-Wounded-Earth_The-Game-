@@ -25,7 +25,7 @@ export interface FailFlowHost {
   canFail(): boolean;
   closePause(): void;
   hideDiscovery(): void;
-  /** finishStage/continueStage/ingredient alpha -> 0 (finish objects aren't extracted yet). */
+  /** finishStage/continueStage/ingredient alpha -> 0, via FinishFlow.hidePreview(). */
   hideFinishPreview(): void;
   haltShark(): void;
   emitFocusMode(active: boolean): void;
