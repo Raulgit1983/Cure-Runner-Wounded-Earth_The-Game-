@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 
 import { journeyConfig } from '@/game/content/journeyConfig';
 import { journeyStages, type JourneyStageKey } from '@/game/content/journeyStages';
+import { listPlayableCharacters, type PlayableCharacterId } from '@/game/content/playableCharacters';
+import { localPreferenceStore } from '@/game/services/persistence/localPreferenceStore';
 import { UI_FONT_STACK, uiTextResolution } from '@/ui/phaserTextStyle';
 
 /**
@@ -413,9 +415,100 @@ export class LevelEntryScene extends Phaser.Scene {
       }
     });
 
+    this.buildCharacterPicker(centerX, 428, entry.accentColor);
+
     // Only the explicit CTA starts the level (see ctaHit above). Tapping the
     // backdrop does nothing — intentional, so a stray tap never skips the
     // chapter, mirroring the DOM cover's CTA-only behaviour.
+  }
+
+  /**
+   * Minimal character picker: one row of portraits in the band between the
+   * entry art (ends ~y412) and the copy card (starts y444). Tapping one saves
+   * the preference immediately; `JourneyScene.create()` re-reads it on start.
+   *
+   * Portraits render small to fit the band, but each hit area is deliberately
+   * much larger than its art so it stays tappable for a child (the visual and
+   * the touch target are decoupled, same trick as the CTA's oversized hit box).
+   */
+  private buildCharacterPicker(centerX: number, rowY: number, accentColor: number) {
+    const characters = listPlayableCharacters();
+
+    if (characters.length < 2) {
+      return;
+    }
+
+    const portraitBox = 30;
+    const hitBox = 46;
+    const spacing = 52;
+    const startX = centerX - ((characters.length - 1) * spacing) / 2;
+    const rings: Phaser.GameObjects.Ellipse[] = [];
+    const portraits: Phaser.GameObjects.Image[] = [];
+    let selectedId: PlayableCharacterId = localPreferenceStore.loadCharacterId();
+
+    const applySelection = () => {
+      characters.forEach((character, index) => {
+        const isSelected = character.id === selectedId;
+        rings[index]?.setStrokeStyle(2, accentColor, isSelected ? 0.85 : 0.14);
+        portraits[index]?.setAlpha(isSelected ? 1 : 0.45);
+      });
+    };
+
+    const row = this.add.container(0, 0).setAlpha(0);
+
+    characters.forEach((character, index) => {
+      const x = startX + index * spacing;
+      const ring = this.add.ellipse(x, rowY, portraitBox + 12, portraitBox + 12, 0x0d141c, 0.6);
+      rings.push(ring);
+      row.add(ring);
+
+      if (this.textures.exists(character.poses.main.key)) {
+        const source = this.textures.get(character.poses.main.key).getSourceImage() as {
+          width: number;
+          height: number;
+        };
+        const fit = Math.min(portraitBox / source.width, portraitBox / source.height);
+        const portrait = this.add.image(x, rowY, character.poses.main.key).setScale(fit);
+        portraits.push(portrait);
+        row.add(portrait);
+      }
+
+      const hit = this.add
+        .rectangle(x, rowY, hitBox, hitBox, 0x000000, 0.001)
+        .setInteractive({ useHandCursor: true });
+
+      hit.on(
+        'pointerdown',
+        (
+          _pointer: Phaser.Input.Pointer,
+          _localX: number,
+          _localY: number,
+          event: Phaser.Types.Input.EventData
+        ) => {
+          event.stopPropagation();
+
+          if (this.transitioning || selectedId === character.id) {
+            return;
+          }
+
+          selectedId = character.id;
+          localPreferenceStore.saveCharacterId(character.id);
+          applySelection();
+        }
+      );
+
+      row.add(hit);
+    });
+
+    applySelection();
+
+    this.tweens.add({
+      targets: row,
+      alpha: 1,
+      duration: 320,
+      delay: 620,
+      ease: 'Quad.easeOut'
+    });
   }
 
   private startJourney() {

@@ -1,10 +1,15 @@
 import Phaser from 'phaser';
 
-import { heroProfile } from '@/game/content/heroProfile';
 import { journeyStages, type JourneyStageDefinition, type JourneyStageKey } from '@/game/content/journeyStages';
 import { journeyConfig } from '@/game/content/journeyConfig';
+import {
+  CHARACTER_RENDER_ORIGIN,
+  getCharacter,
+  type PlayableCharacter
+} from '@/game/content/playableCharacters';
 import { runnerConfig } from '@/game/content/runnerConfig';
 import { audioCueBus } from '@/game/services/audio/audioCueBus';
+import { localPreferenceStore } from '@/game/services/persistence/localPreferenceStore';
 import { localProgressStore } from '@/game/services/persistence/localProgressStore';
 import { runTelemetryStore } from '@/game/services/telemetry/runTelemetryStore';
 import { sessionState } from '@/game/state/sessionState';
@@ -36,21 +41,19 @@ const SUPPORTIVE_LINES = [
   'Hay camino.'
 ] as const;
 const SHARK_LINES = ['Respira.', 'Arriba.', 'Toma aire.'] as const;
-const HERO_HIT_TEXTURE_KEY = 'hero-hit-stagger';
-const HERO_JUMP_RISE_TEXTURE_KEY = 'hero-jump-rise';
-const HERO_JUMP_FALL_TEXTURE_KEY = 'hero-jump-fall';
-const HERO_FINISH_TEXTURE_KEY = 'hero-finish-awakened';
+// Pose-switch tuning is shared by every playable character on purpose: the
+// jump arc, its timing and how a pose is chosen must feel identical no matter
+// who is on screen. Only the texture keys behind the poses vary per character.
 const HERO_HIT_POSE_LOCK_SECONDS = 0.15;
 const HERO_AIR_RISE_THRESHOLD = -32;
 const HERO_AIR_FALL_THRESHOLD = 32;
 const HERO_AIR_APEX_DEADZONE = 12;
 const HERO_FOOTING_VISUAL_OFFSET_Y = 4;
-type HeroTextureKey =
-  | typeof heroProfile.textureKey
-  | typeof HERO_HIT_TEXTURE_KEY
-  | typeof HERO_JUMP_RISE_TEXTURE_KEY
-  | typeof HERO_JUMP_FALL_TEXTURE_KEY
-  | typeof HERO_FINISH_TEXTURE_KEY;
+/**
+ * Texture keys are resolved from the active character's pose set at runtime,
+ * so this is a plain string rather than a union of hardcoded hero keys.
+ */
+type HeroTextureKey = string;
 
 export class JourneyScene extends Phaser.Scene {
   private readonly showDebug =
@@ -65,6 +68,8 @@ export class JourneyScene extends Phaser.Scene {
   };
   private stageKey: JourneyStageKey = 'wounded-planet';
   private stage: JourneyStageDefinition = journeyStages['wounded-planet'];
+  /** Resolved once per `create()` from the saved preference; drives poses + scale only. */
+  private character: PlayableCharacter = getCharacter(undefined);
 
   private backdropRenderer!: BackdropRenderer;
   private heroShadow!: Phaser.GameObjects.Ellipse;
@@ -84,7 +89,7 @@ export class JourneyScene extends Phaser.Scene {
   private baseHeroScale = 1;
   private heroRenderScaleX = 1;
   private heroRenderScaleY = 1;
-  private activeHeroTextureKey: HeroTextureKey = heroProfile.textureKey;
+  private activeHeroTextureKey: HeroTextureKey = getCharacter(undefined).poses.main.key;
   private lastDebugEmit = 0;
   private victoryFrozen = false;
   private returnHomeQueued = false;
@@ -128,12 +133,16 @@ export class JourneyScene extends Phaser.Scene {
     const heroX = runnerConfig.hero.screenX;
     const width = journeyConfig.logicalSize.width;
 
+    // Re-read the preference on every create() so a pick made on the entry
+    // screen applies to this run (and survives scene.restart()).
+    this.character = getCharacter(localPreferenceStore.loadCharacterId());
+
     this.victoryFrozen = false;
     this.returnHomeQueued = false;
     this.hitReactionTimer = 0;
     this.hitReactionStrength = 0;
     this.hitPoseLockTimer = 0;
-    this.activeHeroTextureKey = heroProfile.textureKey;
+    this.activeHeroTextureKey = this.character.poses.main.key;
     this.sharkBurst = 0;
     this.sharkCooldown = 3.8;
     this.sharkActive = false;
@@ -162,15 +171,15 @@ export class JourneyScene extends Phaser.Scene {
       .setDepth(2);
 
     this.hero = this.add
-      .image(heroX, heroY, heroProfile.textureKey)
-      .setOrigin(heroProfile.renderOrigin.x, heroProfile.renderOrigin.y)
+      .image(heroX, heroY, this.character.poses.main.key)
+      .setOrigin(CHARACTER_RENDER_ORIGIN.x, CHARACTER_RENDER_ORIGIN.y)
       .setDepth(5);
     this.activeHeroTextureKey = this.hero.texture.key as HeroTextureKey;
     const hitReaction = this.createHitReaction();
     this.hitReaction = hitReaction.container;
     this.hitReactionText = hitReaction.text;
 
-    this.baseHeroScale = heroProfile.mobileScale.preferredPx / this.hero.height;
+    this.baseHeroScale = this.character.mobileScale.preferredPx / this.hero.height;
     this.heroRenderScaleX = this.baseHeroScale;
     this.heroRenderScaleY = this.baseHeroScale;
     this.hero.setScale(this.baseHeroScale);
@@ -743,64 +752,83 @@ export class JourneyScene extends Phaser.Scene {
     this.activeHeroTextureKey = nextTextureKey;
   }
 
+  /**
+   * The one pose switcher, shared by every playable character. Priority order,
+   * thresholds and hysteresis are identical for all of them — only the texture
+   * keys come from the active character's pose set.
+   *
+   * Every optional pose stays behind a `textures.exists()` guard, so a
+   * character that ships without an air or finish pose silently falls through
+   * to its own `main` texture instead of rendering a missing/other-character
+   * texture.
+   */
   private resolveHeroTextureKey(loopSnapshot: RunnerLoopSnapshot): HeroTextureKey {
-    if (this.finishFlow.isResolved() && this.textures.exists(HERO_FINISH_TEXTURE_KEY)) {
-      return HERO_FINISH_TEXTURE_KEY;
+    const poses = this.character.poses;
+    const mainKey = poses.main.key;
+    const hitKey = poses.hit?.key;
+    const riseKey = poses.jumpRise?.key;
+    const fallKey = poses.jumpFall?.key;
+    const finishKey = poses.finishAwakened?.key;
+    const hasTexture = (key: string | undefined): key is string =>
+      Boolean(key) && this.textures.exists(key!);
+
+    if (this.finishFlow.isResolved() && hasTexture(finishKey)) {
+      return finishKey;
     }
 
-    if (this.hitPoseLockTimer > 0 && this.textures.exists(HERO_HIT_TEXTURE_KEY)) {
-      return HERO_HIT_TEXTURE_KEY;
+    if (this.hitPoseLockTimer > 0 && hasTexture(hitKey)) {
+      return hitKey;
     }
 
     if (loopSnapshot.grounded) {
-      return heroProfile.textureKey;
+      return mainKey;
     }
 
     const velocityY = loopSnapshot.velocityY;
 
-    if (velocityY <= HERO_AIR_RISE_THRESHOLD && this.textures.exists(HERO_JUMP_RISE_TEXTURE_KEY)) {
-      return HERO_JUMP_RISE_TEXTURE_KEY;
+    if (velocityY <= HERO_AIR_RISE_THRESHOLD && hasTexture(riseKey)) {
+      return riseKey;
     }
 
-    if (velocityY >= HERO_AIR_FALL_THRESHOLD && this.textures.exists(HERO_JUMP_FALL_TEXTURE_KEY)) {
-      return HERO_JUMP_FALL_TEXTURE_KEY;
+    if (velocityY >= HERO_AIR_FALL_THRESHOLD && hasTexture(fallKey)) {
+      return fallKey;
     }
 
     // Keep the previous air pose through the apex to avoid rise/fall flicker.
     if (Math.abs(velocityY) <= HERO_AIR_APEX_DEADZONE) {
       if (
-        this.activeHeroTextureKey === HERO_JUMP_RISE_TEXTURE_KEY ||
-        this.activeHeroTextureKey === HERO_JUMP_FALL_TEXTURE_KEY
+        this.activeHeroTextureKey === riseKey ||
+        this.activeHeroTextureKey === fallKey
       ) {
         return this.activeHeroTextureKey;
       }
     }
 
     if (
-      this.activeHeroTextureKey === HERO_JUMP_RISE_TEXTURE_KEY &&
+      this.activeHeroTextureKey === riseKey &&
       velocityY < HERO_AIR_FALL_THRESHOLD &&
-      this.textures.exists(HERO_JUMP_RISE_TEXTURE_KEY)
+      hasTexture(riseKey)
     ) {
-      return HERO_JUMP_RISE_TEXTURE_KEY;
+      return riseKey;
     }
 
     if (
-      this.activeHeroTextureKey === HERO_JUMP_FALL_TEXTURE_KEY &&
+      this.activeHeroTextureKey === fallKey &&
       velocityY > HERO_AIR_RISE_THRESHOLD &&
-      this.textures.exists(HERO_JUMP_FALL_TEXTURE_KEY)
+      hasTexture(fallKey)
     ) {
-      return HERO_JUMP_FALL_TEXTURE_KEY;
+      return fallKey;
     }
 
-    if (velocityY < 0 && this.textures.exists(HERO_JUMP_RISE_TEXTURE_KEY)) {
-      return HERO_JUMP_RISE_TEXTURE_KEY;
+    if (velocityY < 0 && hasTexture(riseKey)) {
+      return riseKey;
     }
 
-    if (this.textures.exists(HERO_JUMP_FALL_TEXTURE_KEY)) {
-      return HERO_JUMP_FALL_TEXTURE_KEY;
+    if (hasTexture(fallKey)) {
+      return fallKey;
     }
 
-    return heroProfile.textureKey;
+    return mainKey;
   }
 
   private updateHitReaction() {
