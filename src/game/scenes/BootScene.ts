@@ -2,14 +2,9 @@ import Phaser from 'phaser';
 
 import { importWithRecovery } from '@/app/importWithRecovery';
 import sharkTextureUrl from '@/assets/creatures/tiburoncin-ok.png';
-import heroFinishAwakenedTextureUrl from '@/assets/hero/hero-finish-awakened.webp';
-import heroHitStaggerTextureUrl from '@/assets/hero/hero-hit-stagger.webp';
-import heroJumpFallTextureUrl from '@/assets/hero/hero-jump-fall.webp';
-import heroJumpRiseTextureUrl from '@/assets/hero/hero-jump-rise.webp';
-import heroTextureUrl from '@/assets/hero/hero-main.webp';
 import { journeyStages, type JourneyStageKey } from '@/game/content/journeyStages';
-import { heroProfile } from '@/game/content/heroProfile';
 import { getFirstLevel } from '@/game/content/levels/levelRegistry';
+import { listAllCharacterPoses } from '@/game/content/playableCharacters';
 import { UI_FONT_STACK, uiTextResolution } from '@/ui/phaserTextStyle';
 
 const loadJourneyScene = () => import('@/game/scenes/JourneyScene');
@@ -38,11 +33,12 @@ export class BootScene extends Phaser.Scene {
     // never a readable "loading screen".
     this.cameras.main.setBackgroundColor('#0b1017');
 
-    this.load.image(heroProfile.textureKey, heroTextureUrl);
-    this.load.image('hero-hit-stagger', heroHitStaggerTextureUrl);
-    this.load.image('hero-jump-rise', heroJumpRiseTextureUrl);
-    this.load.image('hero-jump-fall', heroJumpFallTextureUrl);
-    this.load.image('hero-finish-awakened', heroFinishAwakenedTextureUrl);
+    // Every playable character's poses, straight from the registry — adding a
+    // character is a registry entry, not another load line here.
+    listAllCharacterPoses().forEach((pose) => {
+      this.load.image(pose.key, pose.url);
+    });
+
     this.load.image('shark-friend', sharkTextureUrl);
 
     const initialEntry = journeyStages[INITIAL_STAGE_KEY].entry;
