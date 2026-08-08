@@ -3,11 +3,6 @@ import Phaser from 'phaser';
 import { heroProfile } from '@/game/content/heroProfile';
 import { journeyStages, type JourneyStageDefinition, type JourneyStageKey } from '@/game/content/journeyStages';
 import { journeyConfig } from '@/game/content/journeyConfig';
-import {
-  CONTINUE_BUTTON_LABEL,
-  HOME_BUTTON_LABEL,
-  REPLAY_BUTTON_LABEL
-} from '@/game/content/overlayText';
 import { runnerConfig } from '@/game/content/runnerConfig';
 import { audioCueBus } from '@/game/services/audio/audioCueBus';
 import { localProgressStore } from '@/game/services/persistence/localProgressStore';
@@ -18,36 +13,20 @@ import { EmotionController } from '@/game/systems/emotion/EmotionController';
 import { GuidanceDirector } from '@/game/systems/guidance/GuidanceDirector';
 import { DiscoveryFlow } from '@/game/systems/overlays/DiscoveryFlow';
 import { FailFlow } from '@/game/systems/overlays/FailFlow';
+import {
+  FINISH_CONTACT_BEAT_AT,
+  FINISH_HERO_REACH_X,
+  FINISH_HERO_REACH_Y,
+  FINISH_POST_CONTACT_FLOAT_RISE,
+  FinishFlow
+} from '@/game/systems/overlays/FinishFlow';
 import { PauseFlow } from '@/game/systems/overlays/PauseFlow';
 import { RunnerLoopSystem, type RunnerLoopSnapshot } from '@/game/systems/runner/RunnerLoopSystem';
-import { createPanelButton } from '@/ui/panelButton';
 
 const SHARK_TEXTURE_KEY = 'shark-friend';
 const DEBUG_DECORATIVE_FAMILIES = ['backdrop', 'ground-markers', 'shark-friend'] as const;
-const FINISH_TITLE = 'Nota despertada';
-const FINISH_LABEL = 'Algo cambió.';
-const FINISH_BODY = 'Algo ha despertado.';
-const FINISH_CLOSING = 'La luz abre camino.';
-const MOONLIGHT_FINISH_TITLE = 'Reflejo despierto';
-const MOONLIGHT_FINISH_LABEL = 'Hasta aquí, por ahora.';
-const MOONLIGHT_FINISH_BODY = 'No hay más niveles todavía.';
-const MOONLIGHT_FINISH_CLOSING = 'Puedes repetir o volver.';
-const FINISH_REWARD_ZONE_X = 236;
-const FINISH_REWARD_ZONE_Y = 332;
-const FINISH_INGREDIENT_ZONE_X = FINISH_REWARD_ZONE_X + 36;
-const FINISH_INGREDIENT_ZONE_Y = FINISH_REWARD_ZONE_Y + 16;
-const FINISH_HERO_REACH_X = FINISH_INGREDIENT_ZONE_X - 40;
-const FINISH_HERO_REACH_Y = FINISH_REWARD_ZONE_Y + 120;
-const FINISH_CONTACT_BEAT_AT = 0.58;
-const FINISH_POST_CONTACT_FLOAT_RISE = 10;
-const FINISH_PANEL_REVEAL_AT = 0.94;
-const FINISH_SEQUENCE_SPEED = 1.85;
-const FINISH_CONTINUE_BUTTON_LABEL = 'Seguir';
 const MOONLIGHT_OPPORTUNITY_LINE = 'Queda una oportunidad.';
 const MOONLIGHT_OPPORTUNITY_PULSE = 0.46;
-const CONTINUE_TITLE = 'Respira.';
-const CONTINUE_BODY = 'Cada paso despierta algo.';
-const CONTINUE_CLOSING = 'Sigamos.';
 const FIRST_HIT_REACTION = 'Ay!!';
 const SECOND_HIT_REACTION = 'Ñó!!!';
 const SHARK_PULSE_RESTORE = 0.32;
@@ -88,21 +67,15 @@ export class JourneyScene extends Phaser.Scene {
   private stage: JourneyStageDefinition = journeyStages['wounded-planet'];
 
   private backdropRenderer!: BackdropRenderer;
-  private finishScrim!: Phaser.GameObjects.Rectangle;
-  private finishGlow!: Phaser.GameObjects.Ellipse;
   private heroShadow!: Phaser.GameObjects.Ellipse;
   private heroAura!: Phaser.GameObjects.Ellipse;
   private hero!: Phaser.GameObjects.Image;
   private hitReaction!: Phaser.GameObjects.Container;
   private hitReactionText!: Phaser.GameObjects.Text;
-  private ingredient!: Phaser.GameObjects.Container;
-  private finishStage!: Phaser.GameObjects.Container;
-  private continueStage!: Phaser.GameObjects.Container;
-  private finishReward!: Phaser.GameObjects.Container;
-  private finishMessage!: Phaser.GameObjects.Container;
   private pauseFlow!: PauseFlow;
   private discoveryFlow!: DiscoveryFlow;
   private failFlow!: FailFlow;
+  private finishFlow!: FinishFlow;
   private runnerLoop!: RunnerLoopSystem;
   private shark!: Phaser.GameObjects.Container;
   private sharkShadow!: Phaser.GameObjects.Ellipse;
@@ -113,11 +86,6 @@ export class JourneyScene extends Phaser.Scene {
   private heroRenderScaleY = 1;
   private activeHeroTextureKey: HeroTextureKey = heroProfile.textureKey;
   private lastDebugEmit = 0;
-  private finishPulse = 0;
-  private finishResolved = false;
-  private continueResolved = false;
-  private finishSequence = 0;
-  private finishAwakeningBeatShown = false;
   private victoryFrozen = false;
   private returnHomeQueued = false;
   private hitReactionTimer = 0;
@@ -160,11 +128,6 @@ export class JourneyScene extends Phaser.Scene {
     const heroX = runnerConfig.hero.screenX;
     const width = journeyConfig.logicalSize.width;
 
-    this.finishPulse = 0;
-    this.finishResolved = false;
-    this.continueResolved = false;
-    this.finishSequence = 0;
-    this.finishAwakeningBeatShown = false;
     this.victoryFrozen = false;
     this.returnHomeQueued = false;
     this.hitReactionTimer = 0;
@@ -191,14 +154,6 @@ export class JourneyScene extends Phaser.Scene {
       this.stage.backdropKind,
       sessionState.snapshot().displayLevel
     );
-    this.finishScrim = this.add
-      .rectangle(width * 0.5, journeyConfig.logicalSize.height * 0.5, width, journeyConfig.logicalSize.height, 0x0a0d12, 0)
-      .setDepth(5.8);
-    const isMoonlight = this.stage.backdropKind === 'moonlight-mountain';
-    this.finishGlow = this.add
-      .ellipse(width - 20, 192, 128, 248, isMoonlight ? 0xcef2ff : 0xf2ffce, 0)
-      .setBlendMode(Phaser.BlendModes.ADD)
-      .setDepth(0.6);
     this.heroShadow = this.add
       .ellipse(heroX, runnerConfig.visual.groundLineY + 8, 112, 22, 0x120b14, 0.18)
       .setDepth(1);
@@ -219,17 +174,52 @@ export class JourneyScene extends Phaser.Scene {
     this.heroRenderScaleX = this.baseHeroScale;
     this.heroRenderScaleY = this.baseHeroScale;
     this.hero.setScale(this.baseHeroScale);
-    this.ingredient = this.createIngredient(width - 52, 188);
-    this.finishReward = this.createIngredient(width * 0.5, 0).setAlpha(0).setScale(0.9).setDepth(5.5);
-    this.finishMessage = this.createFinishMessage(0, 0);
-    this.finishStage = this.add
-      .container(width * 0.5, 148, [this.finishMessage])
-      .setDepth(6.65)
-      .setAlpha(0)
-      .setScale(0.88);
-    this.continueStage = this.createContinueStage(width * 0.5, 148);
+    this.finishFlow = new FinishFlow(this, this.stage, {
+      closePause: () => this.pauseFlow.close(false),
+      hideDiscovery: () => this.discoveryFlow.hide(),
+      haltShark: () => this.haltSharkEvent(),
+      clearHitReaction: () => {
+        this.hitReactionTimer = 0;
+        this.hitPoseLockTimer = 0;
+      },
+      emitFocusMode: (active) => this.emitFocusMode(active),
+      emitVictoryState: (active) => this.emitVictoryState(active),
+      freezeRun: () => {
+        if (this.victoryFrozen) {
+          return;
+        }
+
+        this.runnerLoop.setFrozen(true);
+        this.victoryFrozen = true;
+      },
+      emitLightMotes: (x, y, options) => this.emitLightMotes(x, y, options),
+      getHeroPosition: () => ({ x: this.hero.x, y: this.hero.y }),
+      isReturnHomeQueued: () => this.returnHomeQueued,
+      advanceToStage: (nextStageKey) => {
+        this.emitFocusMode(false);
+        this.emitVictoryState(false);
+        this.emitUiScreen('chapter');
+        this.cameras.main.fadeOut(220, 9, 16, 26);
+        this.time.delayedCall(220, () => {
+          sessionState.restartRun();
+          this.scene.start(this.scene.manager.keys['level-entry'] ? 'level-entry' : 'journey', {
+            stage: nextStageKey
+          });
+        });
+      },
+      replayCurrentStage: () => {
+        this.emitFocusMode(false);
+        this.emitVictoryState(false);
+        this.cameras.main.fadeOut(220, 9, 16, 26);
+        this.time.delayedCall(220, () => {
+          sessionState.restartRun();
+          this.scene.restart({ stage: this.stageKey });
+        });
+      },
+      returnToStart: () => this.returnToStart()
+    });
     this.discoveryFlow = new DiscoveryFlow(this, {
-      canShow: () => !this.failFlow.isResolved() && !this.finishResolved,
+      canShow: () => !this.failFlow.isResolved() && !this.finishFlow.isResolved(),
       setRunFrozen: (frozen) => this.runnerLoop.setFrozen(frozen),
       emitFocusMode: (active) => this.emitFocusMode(active),
       emitGuidanceLine: (text, durationMs, time) => this.emitGuidanceLine(text, durationMs, time),
@@ -237,7 +227,7 @@ export class JourneyScene extends Phaser.Scene {
         this.lastGuidanceAt = time;
       },
       resumeIfAllowed: () => {
-        if (this.failFlow.isResolved() || this.finishResolved || this.victoryFrozen) {
+        if (this.failFlow.isResolved() || this.finishFlow.isResolved() || this.victoryFrozen) {
           return;
         }
 
@@ -254,25 +244,21 @@ export class JourneyScene extends Phaser.Scene {
       returnToStart: () => this.returnToStart()
     });
     this.pauseFlow = new PauseFlow(this, {
-      canPause: () => !this.failFlow.isResolved() && !this.finishResolved && !this.returnHomeQueued,
+      canPause: () => !this.failFlow.isResolved() && !this.finishFlow.isResolved() && !this.returnHomeQueued,
       isDiscoveryBeatActive: () => this.discoveryFlow.isActive(),
       canRestoreRun: () =>
-        !this.failFlow.isResolved() && !this.finishResolved && !this.discoveryFlow.isActive(),
+        !this.failFlow.isResolved() && !this.finishFlow.isResolved() && !this.discoveryFlow.isActive(),
       setRunFrozen: (frozen) => this.runnerLoop.setFrozen(frozen),
       haltShark: () => this.haltSharkEvent(),
       emitFocusMode: (active) => this.emitFocusMode(active),
-      replayCurrentStage: () => this.replayCurrentStage(),
+      replayCurrentStage: () => this.finishFlow.requestReplay(),
       returnToStart: () => this.returnToStart()
     });
     this.failFlow = new FailFlow(this, this.stage.backdropKind === 'moonlight-mountain', this.showDebug, {
-      canFail: () => !this.finishResolved,
+      canFail: () => !this.finishFlow.isResolved(),
       closePause: () => this.pauseFlow.close(false),
       hideDiscovery: () => this.discoveryFlow.hide(),
-      hideFinishPreview: () => {
-        this.finishStage.setAlpha(0);
-        this.continueStage.setAlpha(0);
-        this.ingredient.setAlpha(0);
-      },
+      hideFinishPreview: () => this.finishFlow.hidePreview(),
       haltShark: () => this.haltSharkEvent(),
       emitFocusMode: (active) => this.emitFocusMode(active),
       clearHitReaction: () => {
@@ -300,7 +286,7 @@ export class JourneyScene extends Phaser.Scene {
 
     if (this.stage.introGuidance && this.guidance.showOnce('stage_intro')) {
       this.time.delayedCall(420, () => {
-        if (!this.failFlow.isResolved() && !this.finishResolved) {
+        if (!this.failFlow.isResolved() && !this.finishFlow.isResolved()) {
           this.emitGuidanceLine(this.stage.introGuidance!, 2100, this.time.now);
         }
       });
@@ -329,26 +315,21 @@ export class JourneyScene extends Phaser.Scene {
     this.runnerLoop.update(deltaSeconds, time, mood, snapshot.displayLevel);
     const loopSnapshot = this.runnerLoop.snapshot();
 
-    if (loopSnapshot.runFailed && !this.failFlow.isResolved() && !this.finishResolved) {
+    if (loopSnapshot.runFailed && !this.failFlow.isResolved() && !this.finishFlow.isResolved()) {
       if (!this.tryMoonlightOpportunity()) {
         this.failFlow.begin();
       }
     }
 
-    if (this.finishResolved) {
-      this.finishSequence = Math.min(1, this.finishSequence + deltaSeconds * FINISH_SEQUENCE_SPEED);
-
-      if (!this.victoryFrozen) {
-        this.runnerLoop.setFrozen(true);
-        this.victoryFrozen = true;
-      }
-    }
+    // Step 1 of the finish per-frame contract: advance the sequence clock (and
+    // latch the victory freeze) before anything reads it this frame.
+    this.finishFlow.advance(deltaSeconds);
 
     this.feedback.collect = Math.max(0, this.feedback.collect - deltaSeconds * 3);
     this.feedback.chain = Math.max(0, this.feedback.chain - deltaSeconds * 1.6);
     this.feedback.impact = Math.max(0, this.feedback.impact - deltaSeconds * 2.4);
     this.feedback.awakening = Math.max(0, this.feedback.awakening - deltaSeconds * 1.5);
-    this.finishPulse = Math.max(0, this.finishPulse - deltaSeconds * 1.8);
+    this.finishFlow.decayPulse(deltaSeconds);
     this.hitReactionTimer = Math.max(0, this.hitReactionTimer - deltaSeconds);
     this.hitPoseLockTimer = Math.max(0, this.hitPoseLockTimer - deltaSeconds);
     this.sharkBurst = Math.max(0, this.sharkBurst - deltaSeconds * 2.8);
@@ -375,13 +356,16 @@ export class JourneyScene extends Phaser.Scene {
       awakeningFeedback: this.feedback.awakening
     });
 
-    if (!this.failFlow.isResolved() && !this.finishResolved && !this.discoveryFlow.isActive()) {
+    if (!this.failFlow.isResolved() && !this.finishFlow.isResolved() && !this.discoveryFlow.isActive()) {
       this.updateSharkEvent(time, deltaSeconds, loopSnapshot);
       this.updateGuidanceMoments(time, loopSnapshot);
       this.updateDoubleJumpHint(time, loopSnapshot);
     }
 
-    this.updateFinishObjects(time, loopSnapshot);
+    // Step 3 of the finish per-frame contract: this call renders the finish
+    // objects AND is where beginVictoryBeat() fires, so it must stay ahead of
+    // the hero block below, which reads the resulting state in the same frame.
+    this.finishFlow.update(time, loopSnapshot, this.failFlow.isResolved());
     this.failFlow.update();
 
     const runBob = loopSnapshot.grounded
@@ -396,14 +380,19 @@ export class JourneyScene extends Phaser.Scene {
     const impactDrop = loopSnapshot.staggerAmount * 16 + this.feedback.impact * 10;
     const rise = loopSnapshot.collectBurst * 8 + this.feedback.chain * 6;
     const landingSquash = loopSnapshot.landingBurst * 0.10;
-    const finishReach = this.finishResolved
+    // Per-frame pull of the finish sequence, unchanged: the hero block owns
+    // this easing and samples FinishFlow's clock directly, same as when both
+    // lived on the scene. Turning it into an event is deliberate future work.
+    const finishResolved = this.finishFlow.isResolved();
+    const finishSequence = this.finishFlow.getSequence();
+    const finishReach = finishResolved
       ? Phaser.Math.Easing.Cubic.Out(
-          Phaser.Math.Clamp((this.finishSequence - 0.16) / 0.4, 0, 1)
+          Phaser.Math.Clamp((finishSequence - 0.16) / 0.4, 0, 1)
         )
       : 0;
-    const finishFloatProgress = this.finishResolved
+    const finishFloatProgress = finishResolved
       ? Phaser.Math.Easing.Sine.Out(
-          Phaser.Math.Clamp((this.finishSequence - FINISH_CONTACT_BEAT_AT) / 0.18, 0, 1)
+          Phaser.Math.Clamp((finishSequence - FINISH_CONTACT_BEAT_AT) / 0.18, 0, 1)
         )
       : 0;
     // The hero now glides cleanly to the note and touches it before any
@@ -447,10 +436,10 @@ export class JourneyScene extends Phaser.Scene {
     const celebrationFloatY =
       finishFloatProgress *
       (Math.sin(time * 0.0041) * 2.8 + Math.cos(time * 0.0026) * 1.6 - FINISH_POST_CONTACT_FLOAT_RISE);
-    const heroDisplayX = this.finishResolved
+    const heroDisplayX = finishResolved
       ? Phaser.Math.Linear(heroBaseX, FINISH_HERO_REACH_X, finishReach) + celebrationFloatX
       : heroBaseX;
-    const heroDisplayY = this.finishResolved
+    const heroDisplayY = finishResolved
       ? Phaser.Math.Linear(heroBaseY, FINISH_HERO_REACH_Y - victoryBounce * 0.35, finishReach) + celebrationFloatY
       : heroBaseY;
 
@@ -459,7 +448,7 @@ export class JourneyScene extends Phaser.Scene {
     // Subtle i-frame blink during the grace window so the player can read that
     // they are briefly safe after a hit/recovery. Never during finish/fail.
     const inGraceWindow =
-      !this.finishResolved && !this.failFlow.isResolved() && loopSnapshot.invulnerabilitySeconds > 0;
+      !finishResolved && !this.failFlow.isResolved() && loopSnapshot.invulnerabilitySeconds > 0;
     this.hero.setAlpha(inGraceWindow ? 0.6 + 0.4 * Math.abs(Math.sin(time * 0.022)) : 1);
 
     this.hero.rotation = Phaser.Math.Linear(
@@ -490,7 +479,7 @@ export class JourneyScene extends Phaser.Scene {
           this.feedback.chain * 0.05 +
           this.feedback.awakening * 0.05 +
           loopSnapshot.surfaceProgress * 0.05 +
-          this.finishPulse * 0.08
+          this.finishFlow.getPulse() * 0.08
       );
 
     this.heroShadow
@@ -531,7 +520,7 @@ export class JourneyScene extends Phaser.Scene {
         if (
           this.stage.beatGuidance &&
           !this.failFlow.isResolved() &&
-          !this.finishResolved &&
+          !this.finishFlow.isResolved() &&
           this.guidance.showOnce('stage_beat')
         ) {
           this.emitGuidanceLine(this.stage.beatGuidance, 1800, this.time.now);
@@ -545,7 +534,7 @@ export class JourneyScene extends Phaser.Scene {
         const state = sessionState.snapshot();
         const runFailed = this.runnerLoop.snapshot().runFailed;
 
-        if (!runFailed && !this.failFlow.isResolved() && !this.finishResolved) {
+        if (!runFailed && !this.failFlow.isResolved() && !this.finishFlow.isResolved()) {
           if (state.currentPulse <= runnerConfig.obstacle.pulseLoss + 0.03) {
             this.showHitReaction(SECOND_HIT_REACTION, 1);
           } else {
@@ -569,7 +558,7 @@ export class JourneyScene extends Phaser.Scene {
         this.feedback.collect = Math.max(this.feedback.collect, 0.34);
         this.feedback.awakening = Math.max(this.feedback.awakening, 0.24);
 
-        if (!this.failFlow.isResolved() && !this.finishResolved) {
+        if (!this.failFlow.isResolved() && !this.finishFlow.isResolved()) {
           if (this.guidance.showOnce('reserve_gain')) {
             this.discoveryFlow.trigger('reserve_gain', this.time.now);
           } else {
@@ -582,7 +571,7 @@ export class JourneyScene extends Phaser.Scene {
         this.feedback.collect = Math.max(this.feedback.collect, 0.26);
         this.feedback.awakening = Math.max(this.feedback.awakening, 0.14);
 
-        if (!this.failFlow.isResolved() && !this.finishResolved && this.guidance.showOnce('reserve_spent')) {
+        if (!this.failFlow.isResolved() && !this.finishFlow.isResolved() && this.guidance.showOnce('reserve_spent')) {
           this.discoveryFlow.trigger('reserve_spent', this.time.now);
         }
       }
@@ -596,181 +585,6 @@ export class JourneyScene extends Phaser.Scene {
     this.emitFocusMode(false);
     this.offAudioCue?.();
     this.runnerLoop?.destroy();
-  }
-
-  private createIngredient(x: number, y: number) {
-    return this.stage.backdropKind === 'moonlight-mountain'
-      ? this.createMoonlightIngredient(x, y)
-      : this.createWoundedIngredient(x, y);
-  }
-
-  private createWoundedIngredient(x: number, y: number) {
-    const trebleGlyph = '\uD834\uDD1E';
-    const halo = this.add
-      .ellipse(0, 0, 104, 104, 0xeaffc9, 0.18)
-      .setBlendMode(Phaser.BlendModes.ADD);
-    const haloCore = this.add
-      .ellipse(0, 2, 72, 72, 0xfaffef, 0.22)
-      .setBlendMode(Phaser.BlendModes.ADD);
-    const shellGlow = this.add
-      .ellipse(0, 4, 76, 88, 0xdff7d8, 0.14)
-      .setBlendMode(Phaser.BlendModes.ADD);
-    const paperCore = this.add
-      .ellipse(0, 4, 58, 74, 0xf8fff1, 0.98)
-      .setStrokeStyle(3, 0x6b8273, 0.18);
-    const frame = this.add.graphics();
-    frame.lineStyle(2, 0x6a7d72, 0.18);
-    frame.strokeEllipse(0, 2, 64, 82);
-    frame.lineStyle(2, 0xf6fff3, 0.14);
-    frame.strokeEllipse(0, 2, 40, 56);
-    const clefAura = this.add
-      .text(2, -2, trebleGlyph, {
-        fontFamily: '"Noto Sans Symbols 2", "Apple Symbols", "Segoe UI Symbol", Georgia, serif',
-        fontSize: '96px',
-        color: '#c8ffc9'
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setAlpha(0.22);
-    const clefShadow = this.add
-      .text(4, 3, trebleGlyph, {
-        fontFamily: '"Noto Sans Symbols 2", "Apple Symbols", "Segoe UI Symbol", Georgia, serif',
-        fontSize: '88px',
-        color: '#0f1517'
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setAlpha(0.34);
-    const clef = this.add
-      .text(0, -2, trebleGlyph, {
-        fontFamily: '"Noto Sans Symbols 2", "Apple Symbols", "Segoe UI Symbol", Georgia, serif',
-        fontSize: '90px',
-        color: '#ffffff',
-        stroke: '#5d7464',
-        strokeThickness: 3
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 2, '#0a1015', 5, false, true);
-
-    const orbitTop = this.add.ellipse(6, -50, 9, 9, 0xf8ffec, 0.94).setStrokeStyle(2, 0x66796c, 0.18);
-    const heartCore = this.add.ellipse(-1, 2, 16, 16, 0x97ffae, 0.94).setStrokeStyle(2, 0x466145, 0.26);
-    const heartSpark = this.add.ellipse(-1, 2, 7, 7, 0xfffcf0, 0.96);
-    const lowerSeed = this.add.ellipse(-2, 21, 8, 8, 0xc8e7ab, 0.86).setStrokeStyle(2, 0x4d6242, 0.18);
-    const sideLeafLeft = this.add
-      .triangle(-15, -10, -7, 7, 0, -10, 8, 8, 0xe4f2cf, 0.8)
-      .setRotation(-0.58)
-      .setStrokeStyle(2, 0x586b5e, 0.14);
-    const sideLeafRight = this.add
-      .triangle(16, 12, -8, 7, 0, -10, 7, 8, 0xe4f2cf, 0.74)
-      .setRotation(0.48)
-      .setStrokeStyle(2, 0x586b5e, 0.14);
-    const sparkleA = this.add.ellipse(24, -16, 4, 4, 0xfff9e8, 0.5);
-    const sparkleB = this.add.ellipse(-22, -24, 3, 3, 0xfff9e8, 0.36);
-    const sparkleC = this.add.ellipse(-20, 30, 3, 3, 0xf4ffcc, 0.32);
-
-    return this.add
-      .container(x, y, [
-        halo,
-        haloCore,
-        shellGlow,
-        paperCore,
-        frame,
-        clefAura,
-        clefShadow,
-        clef,
-        orbitTop,
-        heartCore,
-        heartSpark,
-        lowerSeed,
-        sideLeafLeft,
-        sideLeafRight,
-        sparkleA,
-        sparkleB,
-        sparkleC
-      ])
-      .setDepth(6.35)
-      .setAlpha(0);
-  }
-
-  private createMoonlightIngredient(x: number, y: number) {
-    const halo = this.add
-      .ellipse(0, 0, 112, 112, 0xd7f5ff, 0.18)
-      .setBlendMode(Phaser.BlendModes.ADD);
-    const haloCore = this.add
-      .ellipse(0, 0, 74, 74, 0xf7fdff, 0.18)
-      .setBlendMode(Phaser.BlendModes.ADD);
-    const glassAura = this.add
-      .ellipse(0, 4, 78, 94, 0xbbe9ff, 0.16)
-      .setBlendMode(Phaser.BlendModes.ADD);
-    const outerRing = this.add
-      .ellipse(0, 4, 62, 78, 0xf6fdff, 0.12)
-      .setStrokeStyle(3, 0x69859a, 0.2);
-
-    const prismFrame = this.add.graphics();
-    const prismPoints = [
-      new Phaser.Geom.Point(0, -36),
-      new Phaser.Geom.Point(28, -4),
-      new Phaser.Geom.Point(0, 38),
-      new Phaser.Geom.Point(-28, -4)
-    ];
-    prismFrame.fillStyle(0xf7fdff, 0.94);
-    prismFrame.fillPoints(prismPoints, true);
-    prismFrame.lineStyle(3, 0x69859a, 0.22);
-    prismFrame.strokePoints(prismPoints, true, true);
-    prismFrame.lineStyle(2, 0xffffff, 0.16);
-    prismFrame.strokeLineShape(new Phaser.Geom.Line(0, -34, 0, 30));
-    prismFrame.strokeLineShape(new Phaser.Geom.Line(-20, 0, 0, -34));
-    prismFrame.strokeLineShape(new Phaser.Geom.Line(20, 0, 0, -34));
-    prismFrame.strokeLineShape(new Phaser.Geom.Line(-20, 0, 0, 30));
-    prismFrame.strokeLineShape(new Phaser.Geom.Line(20, 0, 0, 30));
-
-    const facetLeft = this.add
-      .triangle(-8, 1, -15, -7, 0, -30, -2, 22, 0xd7f4ff, 0.72)
-      .setStrokeStyle(2, 0x6f8ca0, 0.18);
-    const facetRight = this.add
-      .triangle(8, -1, 2, -30, 15, -7, 2, 22, 0xe6fbff, 0.68)
-      .setStrokeStyle(2, 0x6f8ca0, 0.18);
-    const facetBase = this.add
-      .triangle(0, 18, -14, -3, 0, 18, 14, -3, 0xb8dbff, 0.74)
-      .setStrokeStyle(2, 0x6f8ca0, 0.14);
-
-    const crescentGlow = this.add
-      .ellipse(-14, -18, 30, 30, 0xf7fdff, 0.92)
-      .setStrokeStyle(2, 0xa2c8d8, 0.2);
-    const crescentCut = this.add.ellipse(-8, -18, 25, 25, 0x0c1320, 0.82);
-    const prismStarGlow = this.add
-      .ellipse(20, -22, 22, 22, 0xf7fdff, 0.12)
-      .setBlendMode(Phaser.BlendModes.ADD);
-    const prismStar = this.add.star(20, -22, 4, 3, 10, 0xffffff, 0.92).setAngle(45);
-    const lowerSeed = this.add
-      .ellipse(1, 22, 10, 16, 0xbfe9ff, 0.88)
-      .setStrokeStyle(2, 0x53718a, 0.18);
-    const shimmerA = this.add.ellipse(26, 18, 4, 4, 0xf8ffff, 0.46);
-    const shimmerB = this.add.ellipse(-24, 28, 3, 3, 0xe8fbff, 0.34);
-    const shimmerC = this.add.ellipse(-20, -28, 3, 3, 0xf8ffff, 0.36);
-
-    return this.add
-      .container(x, y, [
-        halo,
-        haloCore,
-        glassAura,
-        outerRing,
-        prismFrame,
-        facetLeft,
-        facetRight,
-        facetBase,
-        crescentGlow,
-        crescentCut,
-        prismStarGlow,
-        prismStar,
-        lowerSeed,
-        shimmerA,
-        shimmerB,
-        shimmerC
-      ])
-      .setDepth(6.35)
-      .setAlpha(0);
   }
 
   private createHitReaction() {
@@ -883,374 +697,6 @@ export class JourneyScene extends Phaser.Scene {
     }
   }
 
-  private createFinishMessage(x: number, y: number) {
-    const panel = this.add.graphics();
-    panel.fillStyle(0x0b1117, 0.95);
-    panel.lineStyle(2, 0xdce9d6, 0.1);
-    panel.fillRoundedRect(-118, -78, 236, 184, 22);
-    panel.strokeRoundedRect(-118, -78, 236, 184, 22);
-    panel.lineStyle(1, 0xf7fff0, 0.02);
-    panel.strokeRoundedRect(-110, -70, 220, 168, 18);
-    panel.fillStyle(0xf1ffbe, 0.03);
-    panel.fillEllipse(0, -48, 90, 28);
-    panel.fillStyle(0xd8f4df, 0.03);
-    panel.fillCircle(-82, -46, 2);
-    panel.fillCircle(82, -46, 2);
-    panel.lineStyle(2, 0x9ee9b6, 0.06);
-    panel.lineBetween(-68, -6, 68, -6);
-
-    const isMl = this.stage.backdropKind === 'moonlight-mountain';
-    const title = this.add
-      .text(0, -48, isMl ? MOONLIGHT_FINISH_TITLE : FINISH_TITLE, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '14px',
-        color: '#fff8ef',
-        stroke: '#091018',
-        strokeThickness: 1,
-        align: 'center',
-        wordWrap: { width: 192, useAdvancedWrap: true },
-        lineSpacing: 2
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const label = this.add
-      .text(0, -20, isMl ? MOONLIGHT_FINISH_LABEL : FINISH_LABEL, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '20px',
-        color: '#e9ffaf',
-        stroke: '#081018',
-        strokeThickness: 2,
-        align: 'center'
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#03060a', 3, false, true);
-    const body = this.add
-      .text(0, 16, isMl ? MOONLIGHT_FINISH_BODY : FINISH_BODY, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '13px',
-        color: '#fff7ec',
-        stroke: '#091018',
-        strokeThickness: 1,
-        align: 'center',
-        wordWrap: { width: 186, useAdvancedWrap: true },
-        lineSpacing: 3
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const closing = this.add
-      .text(0, 44, isMl ? MOONLIGHT_FINISH_CLOSING : FINISH_CLOSING, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '12px',
-        color: '#cfe8d9',
-        stroke: '#091018',
-        strokeThickness: 1,
-        align: 'center',
-        wordWrap: { width: 188, useAdvancedWrap: true },
-        lineSpacing: 3
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const continueButton = createPanelButton(
-      this,
-      FINISH_CONTINUE_BUTTON_LABEL,
-      88,
-      () => this.openContinuation(),
-      '11px'
-    );
-    const homeButton = createPanelButton(
-      this,
-      HOME_BUTTON_LABEL,
-      118,
-      () => this.returnToStart(),
-      '11px'
-    );
-    const replayButton = createPanelButton(
-      this,
-      REPLAY_BUTTON_LABEL,
-      94,
-      () => this.replayCurrentStage(),
-      '11px'
-    );
-
-    // Final level: replay + home instead of a misleading continuation CTA.
-    if (!this.stage.nextStage) {
-      // The unused button must be destroyed: createPanelButton() adds it to the
-      // scene at (0,0), so leaving it unparented strands a stray button in the
-      // top-left corner for the whole run.
-      continueButton.destroy();
-      replayButton.setPosition(-54, 86);
-      homeButton.setPosition(54, 86);
-      return this.add.container(x, y, [
-        panel,
-        title,
-        label,
-        body,
-        closing,
-        replayButton,
-        homeButton
-      ]);
-    }
-
-    // Mid-journey: continue + home. Destroy the unused replay button so it does
-    // not linger at the scene origin (see note above).
-    replayButton.destroy();
-    continueButton.setPosition(-56, 86);
-    homeButton.setPosition(54, 86);
-
-    return this.add.container(x, y, [
-      panel,
-      title,
-      label,
-      body,
-      closing,
-      continueButton,
-      homeButton
-    ]);
-  }
-
-  private createContinueStage(x: number, y: number) {
-    const panel = this.add.graphics();
-    panel.fillStyle(0x0b1117, 0.95);
-    panel.lineStyle(2, 0xdce9d6, 0.1);
-    panel.fillRoundedRect(-116, -68, 232, 162, 22);
-    panel.strokeRoundedRect(-116, -68, 232, 162, 22);
-    panel.lineStyle(1, 0xf7fff0, 0.02);
-    panel.strokeRoundedRect(-108, -60, 216, 146, 18);
-    panel.fillStyle(0xf1ffbe, 0.026);
-    panel.fillEllipse(0, -30, 76, 22);
-    panel.fillStyle(0xd8f4df, 0.028);
-    panel.fillCircle(-76, -30, 2);
-    panel.fillCircle(76, -30, 2);
-
-    const title = this.add
-      .text(0, -30, CONTINUE_TITLE, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '20px',
-        color: '#f2ffbe',
-        stroke: '#081018',
-        strokeThickness: 2,
-        align: 'center'
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#03060a', 3, false, true);
-    const body = this.add
-      .text(0, 6, CONTINUE_BODY, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '13px',
-        color: '#fff7ec',
-        stroke: '#091018',
-        strokeThickness: 1,
-        align: 'center',
-        wordWrap: { width: 186, useAdvancedWrap: true },
-        lineSpacing: 3
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const closing = this.add
-      .text(0, 46, CONTINUE_CLOSING, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '12px',
-        color: '#cfe8d9',
-        stroke: '#091018',
-        strokeThickness: 1,
-        align: 'center',
-        wordWrap: { width: 184, useAdvancedWrap: true },
-        lineSpacing: 3
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const button = createPanelButton(this, HOME_BUTTON_LABEL, 136, () => this.returnToStart());
-
-    button.setPosition(0, 86);
-
-    return this.add
-      .container(x, y, [panel, title, body, closing, button])
-      .setDepth(6.66)
-      .setAlpha(0)
-      .setScale(0.9);
-  }
-
-  private updateFinishObjects(time: number, loopSnapshot: RunnerLoopSnapshot) {
-    if (this.failFlow.isResolved() && !this.finishResolved) {
-      this.ingredient.setAlpha(0);
-      this.finishReward.setAlpha(0);
-      this.finishStage.setAlpha(0);
-      this.continueStage.setAlpha(0);
-      return;
-    }
-
-    const hover = Math.sin(time * 0.0042) * 3.6;
-    const sequenceEase = Phaser.Math.Easing.Cubic.Out(this.finishSequence);
-    const sequenceBack = Phaser.Math.Easing.Back.Out(this.finishSequence);
-    const previewTravel = Phaser.Math.Easing.Sine.Out(loopSnapshot.finishRevealProgress);
-    const ingredientFade = this.finishResolved
-      ? Phaser.Math.Easing.Cubic.In(
-          Phaser.Math.Clamp((this.finishSequence - (FINISH_CONTACT_BEAT_AT + 0.02)) / 0.18, 0, 1)
-        )
-      : 0;
-    const rewardReveal = this.finishResolved
-      ? Phaser.Math.Easing.Cubic.Out(
-          Phaser.Math.Clamp((this.finishSequence - FINISH_CONTACT_BEAT_AT) / 0.24, 0, 1)
-        )
-      : 0;
-    const ingredientAlphaTarget = this.finishResolved
-      ? 0.98 * (1 - ingredientFade)
-      : Math.max(loopSnapshot.finishRevealProgress, 0);
-    const nextIngredientAlpha = Phaser.Math.Linear(
-      this.ingredient.alpha,
-      ingredientAlphaTarget,
-      this.finishResolved ? 0.16 : 0.2
-    );
-    const stageAlphaTarget =
-      this.finishResolved && !this.continueResolved && this.finishSequence >= FINISH_PANEL_REVEAL_AT
-        ? 0.98
-        : 0;
-    const nextStageAlpha = Phaser.Math.Linear(this.finishStage.alpha, stageAlphaTarget, 0.12);
-    const nextStageScale = Phaser.Math.Linear(
-      this.finishStage.scaleX,
-      this.finishResolved && !this.continueResolved && this.finishSequence >= FINISH_PANEL_REVEAL_AT
-        ? 0.98
-        : 0.88,
-      0.12
-    );
-    const continueAlphaTarget = this.finishResolved && this.continueResolved ? 0.98 : 0;
-    const nextContinueAlpha = Phaser.Math.Linear(this.continueStage.alpha, continueAlphaTarget, 0.12);
-    const nextContinueScale = Phaser.Math.Linear(
-      this.continueStage.scaleX,
-      this.finishResolved && this.continueResolved ? 0.98 : 0.9,
-      0.12
-    );
-    const rewardAlphaTarget = this.finishResolved ? 0.98 * rewardReveal : 0;
-    const nextRewardAlpha = Phaser.Math.Linear(this.finishReward.alpha, rewardAlphaTarget, 0.14);
-    const scrimTarget = this.finishResolved ? 0.08 : 0;
-    const rewardSourceX = Phaser.Math.Linear(FINISH_HERO_REACH_X + 28, FINISH_INGREDIENT_ZONE_X - 8, 0.58);
-    const rewardSourceY = Phaser.Math.Linear(FINISH_HERO_REACH_Y - 68, FINISH_INGREDIENT_ZONE_Y + 4, 0.56);
-    const ingredientX = this.finishResolved
-      ? Phaser.Math.Linear(this.ingredient.x, FINISH_INGREDIENT_ZONE_X, 0.18)
-      : Phaser.Math.Linear(journeyConfig.logicalSize.width + 34, FINISH_INGREDIENT_ZONE_X, previewTravel);
-    const ingredientY = this.finishResolved
-      ? Phaser.Math.Linear(this.ingredient.y, FINISH_INGREDIENT_ZONE_Y + hover * 0.34, 0.18)
-      : Phaser.Math.Linear(FINISH_INGREDIENT_ZONE_Y + 22, FINISH_INGREDIENT_ZONE_Y, previewTravel) + hover * 0.34;
-    const isMoonlight = this.stage.backdropKind === 'moonlight-mountain';
-    const rewardColor = isMoonlight ? 0xf4fcff : 0xf7ffec;
-    const rewardAccentColor = isMoonlight ? 0xc5efff : 0x9fffba;
-
-    this.finishGlow
-      .setPosition(
-        FINISH_REWARD_ZONE_X + 12,
-        Phaser.Math.Linear(FINISH_REWARD_ZONE_Y + 8, FINISH_REWARD_ZONE_Y - 8, rewardReveal)
-      )
-      .setScale(
-        1 + loopSnapshot.finishRevealProgress * 0.14 + rewardReveal * 0.32,
-        1 + loopSnapshot.surfaceProgress * 0.1 + rewardReveal * 0.28
-      )
-      .setFillStyle(
-        0xf2ffce,
-        0.008 +
-          loopSnapshot.surfaceProgress * 0.05 +
-          loopSnapshot.finishRevealProgress * 0.07 +
-          this.finishPulse * 0.03 +
-          rewardReveal * 0.09
-      );
-
-    this.finishScrim.setAlpha(Phaser.Math.Linear(this.finishScrim.alpha, scrimTarget, 0.08));
-
-    this.ingredient
-      .setPosition(ingredientX, ingredientY)
-      .setAlpha(nextIngredientAlpha)
-      .setScale(0.84 + loopSnapshot.finishRevealProgress * 0.14 + this.finishPulse * 0.06 + sequenceBack * 0.08)
-      .setRotation(Math.sin(time * 0.0032) * 0.08 - loopSnapshot.finishRevealProgress * 0.04 + sequenceEase * 0.03);
-
-    this.finishReward
-      .setPosition(
-        Phaser.Math.Linear(rewardSourceX, FINISH_REWARD_ZONE_X, rewardReveal),
-        Phaser.Math.Linear(rewardSourceY, FINISH_REWARD_ZONE_Y, rewardReveal) +
-          Math.sin(time * 0.0036) * (0.9 + rewardReveal * 1.1)
-      )
-      .setAlpha(nextRewardAlpha)
-      .setScale(0.72 + rewardReveal * 0.16 + this.finishPulse * 0.06 + sequenceBack * 0.08)
-      .setRotation(Math.sin(time * 0.0031) * 0.02 - rewardReveal * 0.018);
-
-    if (
-      this.finishResolved &&
-      !this.finishAwakeningBeatShown &&
-      this.finishSequence >= FINISH_CONTACT_BEAT_AT
-    ) {
-      const contactX = rewardSourceX;
-      const contactY = rewardSourceY;
-      this.finishAwakeningBeatShown = true;
-      this.finishPulse = Math.max(this.finishPulse, 1.28);
-      audioCueBus.emit({
-        type: 'awakening_touch',
-        intensity: 1.14
-      });
-      audioCueBus.emit({
-        type: 'victory_win',
-        intensity: 1.08
-      });
-      this.cameras.main.flash(110, isMoonlight ? 206 : 220, isMoonlight ? 242 : 255, isMoonlight ? 255 : 186, false);
-      this.cameras.main.zoomTo(1.06, 460, 'Cubic.easeOut');
-      this.emitLightMotes(this.ingredient.x, this.ingredient.y, {
-        count: 10,
-        spread: 48,
-        color: rewardColor,
-        accentColor: rewardAccentColor,
-        durationMs: 700,
-        depth: 5.58
-      });
-      this.emitLightMotes(contactX, contactY, {
-        count: 6,
-        spread: 24,
-        color: 0xfffdf1,
-        accentColor: rewardAccentColor,
-        durationMs: 520,
-        depth: 5.54
-      });
-      this.emitLightMotes(this.hero.x + 6, this.hero.y - 42, {
-        count: 8,
-        spread: 32,
-        color: rewardColor,
-        accentColor: rewardAccentColor,
-        durationMs: 640,
-        depth: 5.56
-      });
-      this.time.delayedCall(180, () => {
-        if (!this.scene.isActive() || !this.finishResolved) {
-          return;
-        }
-
-        this.emitLightMotes(this.hero.x + 4, this.hero.y - 38, {
-          count: 5,
-          spread: 24,
-          color: 0xfffdf1,
-          accentColor: rewardAccentColor,
-          durationMs: 520,
-          depth: 5.55
-        });
-      });
-    }
-
-    this.finishStage
-      .setAlpha(nextStageAlpha)
-      .setScale(nextStageScale)
-      .setPosition(journeyConfig.logicalSize.width * 0.5, 146 - sequenceEase * 4);
-    this.continueStage
-      .setAlpha(nextContinueAlpha)
-      .setScale(nextContinueScale)
-      .setPosition(journeyConfig.logicalSize.width * 0.5, 148 - sequenceEase * 4);
-
-    if (loopSnapshot.levelComplete && !this.finishResolved) {
-      this.beginVictoryBeat();
-    }
-  }
-
   private tryMoonlightOpportunity() {
     if (!this.moonlightOpportunityAvailable || this.stage.backdropKind !== 'moonlight-mountain') {
       return false;
@@ -1276,33 +722,6 @@ export class JourneyScene extends Phaser.Scene {
     return true;
   }
 
-  private beginVictoryBeat() {
-    if (this.finishResolved) {
-      return;
-    }
-
-    this.pauseFlow.close(false);
-    this.finishResolved = true;
-    this.continueResolved = false;
-    this.finishPulse = 1;
-    this.hitReactionTimer = 0;
-    this.hitPoseLockTimer = 0;
-    this.discoveryFlow.hide();
-    this.haltSharkEvent();
-    this.emitFocusMode(true);
-    this.emitVictoryState(true);
-
-    if (!this.victoryFrozen) {
-      this.runnerLoop.setFrozen(true);
-      this.victoryFrozen = true;
-    }
-
-    this.children.bringToTop(this.ingredient);
-    this.children.bringToTop(this.finishReward);
-    this.children.bringToTop(this.finishStage);
-
-  }
-
   private showHitReaction(text: string, strength: number) {
     this.hitReactionText.setText(text).setFontSize(strength > 0 ? 17 : 16);
     this.hitReactionTimer = this.hitReactionDuration;
@@ -1325,7 +744,7 @@ export class JourneyScene extends Phaser.Scene {
   }
 
   private resolveHeroTextureKey(loopSnapshot: RunnerLoopSnapshot): HeroTextureKey {
-    if (this.finishResolved && this.textures.exists(HERO_FINISH_TEXTURE_KEY)) {
+    if (this.finishFlow.isResolved() && this.textures.exists(HERO_FINISH_TEXTURE_KEY)) {
       return HERO_FINISH_TEXTURE_KEY;
     }
 
@@ -1385,7 +804,7 @@ export class JourneyScene extends Phaser.Scene {
   }
 
   private updateHitReaction() {
-    if (this.hitReactionTimer <= 0 || this.failFlow.isResolved() || this.finishResolved) {
+    if (this.hitReactionTimer <= 0 || this.failFlow.isResolved() || this.finishFlow.isResolved()) {
       this.hitReaction.setAlpha(0).setVisible(false);
       return;
     }
@@ -1427,45 +846,6 @@ export class JourneyScene extends Phaser.Scene {
     }
   }
 
-  private openContinuation() {
-    if (!this.finishResolved || this.continueResolved) {
-      return;
-    }
-
-    if (this.stage.nextStage) {
-      const nextStageKey = this.stage.nextStage;
-      this.continueResolved = true;
-      this.emitFocusMode(false);
-      this.emitVictoryState(false);
-      this.emitUiScreen('chapter');
-      this.cameras.main.fadeOut(220, 9, 16, 26);
-      this.time.delayedCall(220, () => {
-        sessionState.restartRun();
-        this.scene.start(this.scene.manager.keys['level-entry'] ? 'level-entry' : 'journey', {
-          stage: nextStageKey
-        });
-      });
-      return;
-    }
-
-    this.continueResolved = true;
-    this.children.bringToTop(this.continueStage);
-  }
-
-  private replayCurrentStage() {
-    if (this.continueResolved || this.returnHomeQueued) {
-      return;
-    }
-
-    this.continueResolved = true;
-    this.emitFocusMode(false);
-    this.emitVictoryState(false);
-    this.cameras.main.fadeOut(220, 9, 16, 26);
-    this.time.delayedCall(220, () => {
-      sessionState.restartRun();
-      this.scene.restart({ stage: this.stageKey });
-    });
-  }
 
   private haltSharkEvent() {
     this.sharkActive = false;

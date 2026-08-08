@@ -1,15 +1,14 @@
 /**
  * Shared Spanish copy for the in-game overlay panels. Button labels are used
- * across pause, fail, finish and continuation panels; pause/fail/discovery
- * copy lives here too so those overlay modules own no hardcoded text.
- * (Finish copy still lives in JourneyScene and moves here when that overlay
- * is extracted.)
+ * across pause, fail, finish and continuation panels; pause/fail/discovery/
+ * finish copy lives here too so those overlay modules own no hardcoded text.
  */
 
 export const HOME_BUTTON_LABEL = 'Inicio';
 export const CONTINUE_BUTTON_LABEL = 'Continuar';
 export const REPLAY_BUTTON_LABEL = 'Repetir';
 export const HELP_BUTTON_LABEL = 'Ayuda';
+export const FINISH_CONTINUE_BUTTON_LABEL = 'Seguir';
 
 export const PAUSE_TITLE = 'Pausa.';
 export const PAUSE_BODY = 'Puedes seguir cuando quieras.';
@@ -21,6 +20,19 @@ export const FAIL_CLOSING = 'Toca para volver.';
 export const MOONLIGHT_FAIL_TITLE = 'Aún hay reflejo.';
 export const MOONLIGHT_FAIL_BODY = 'La luna sigue ahí.';
 export const MOONLIGHT_FAIL_CLOSING = 'Toca para volver.';
+
+export const FINISH_TITLE = 'Nota despertada';
+export const FINISH_LABEL = 'Algo cambió.';
+export const FINISH_BODY = 'Algo ha despertado.';
+export const FINISH_CLOSING = 'La luz abre camino.';
+export const MOONLIGHT_FINISH_TITLE = 'Reflejo despierto';
+export const MOONLIGHT_FINISH_LABEL = 'Hasta aquí, por ahora.';
+export const MOONLIGHT_FINISH_BODY = 'No hay más niveles todavía.';
+export const MOONLIGHT_FINISH_CLOSING = 'Puedes repetir o volver.';
+
+export const CONTINUE_TITLE = 'Respira.';
+export const CONTINUE_BODY = 'Cada paso despierta algo.';
+export const CONTINUE_CLOSING = 'Sigamos.';
 
 export type DiscoveryBeatId =
   | 'jump_intro'
