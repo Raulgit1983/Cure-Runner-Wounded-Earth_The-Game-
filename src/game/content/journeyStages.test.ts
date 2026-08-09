@@ -54,6 +54,12 @@ describe('journey stage chain', () => {
     });
   });
 
+  it('uses the complete colour illustration on the Black Forest entry screen', () => {
+    expect(journeyStages['black-forest'].entry.art.imageUrl).toContain(
+      'black-forest-color-entry-v4'
+    );
+  });
+
   it('gives every stage its own overlay copy rather than a shared default', () => {
     const titles = Object.values(journeyStages).map(
       (stage) => STAGE_OVERLAY_COPY[stage.key].finishTitle

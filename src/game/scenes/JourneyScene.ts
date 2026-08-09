@@ -1,13 +1,20 @@
 import Phaser from 'phaser';
 
-import blackForestBgLayerFrontUrl from '@/assets/worlds/black-forest/runtime/black-forest-bg-layer-front.webp';
-import blackForestBgPlateUrl from '@/assets/worlds/black-forest/runtime/black-forest-bg-plate.webp';
-import blackForestEyeUrl from '@/assets/worlds/black-forest/runtime/black-forest-eye.webp';
-import blackForestMouthClosedUrl from '@/assets/worlds/black-forest/runtime/black-forest-mouth-closed.webp';
-import blackForestMouthMidUrl from '@/assets/worlds/black-forest/runtime/black-forest-mouth-mid.webp';
-import blackForestMouthOpenUrl from '@/assets/worlds/black-forest/runtime/black-forest-mouth-open.webp';
+import blackForestIrisUrl from '@/assets/worlds/black-forest/runtime/black-forest-color-iris-v4.webp';
+import blackForestMouthClosedUrl from '@/assets/worlds/black-forest/runtime/black-forest-color-mouth-closed-v4.webp';
+import blackForestMouthMidUrl from '@/assets/worlds/black-forest/runtime/black-forest-color-mouth-mid-v4.webp';
+import blackForestMouthOpenUrl from '@/assets/worlds/black-forest/runtime/black-forest-color-mouth-open-v4.webp';
+import blackForestPlateUrl from '@/assets/worlds/black-forest/runtime/black-forest-color-plate-v4.webp';
+import moonlightBgMainUrl from '@/assets/worlds/moonlight-mountain/runtime/moonlight-mountain-bg-main.webp';
+import moonlightMoonArcsUrl from '@/assets/worlds/moonlight-mountain/runtime/moonlight-mountain-moon-arcs.webp';
+import woundedPlanetBgMainUrl from '@/assets/worlds/world-01/runtime/wounded-planet-bg-main.webp';
 
-import { journeyStages, type JourneyStageDefinition, type JourneyStageKey } from '@/game/content/journeyStages';
+import {
+  journeyStages,
+  type JourneyBackdropKind,
+  type JourneyStageDefinition,
+  type JourneyStageKey
+} from '@/game/content/journeyStages';
 import { journeyConfig } from '@/game/content/journeyConfig';
 import {
   CHARACTER_RENDER_ORIGIN,
@@ -23,10 +30,12 @@ import { localProgressStore } from '@/game/services/persistence/localProgressSto
 import { runTelemetryStore } from '@/game/services/telemetry/runTelemetryStore';
 import { sessionState } from '@/game/state/sessionState';
 import { BackdropRenderer } from '@/game/systems/backdrop/BackdropRenderer';
+import { BLACK_FOREST_TEXTURES } from '@/game/systems/backdrop/blackForestArt';
+import { BlackForestBackdropRenderer } from '@/game/systems/backdrop/BlackForestBackdropRenderer';
 import {
-  BLACK_FOREST_TEXTURES,
-  BlackForestBackdropRenderer
-} from '@/game/systems/backdrop/BlackForestBackdropRenderer';
+  IMAGE_BACKDROP_PLANS,
+  ImageBackdropRenderer
+} from '@/game/systems/backdrop/ImageBackdropRenderer';
 import type { StageBackdrop } from '@/game/systems/backdrop/StageBackdrop';
 import { CarlitosHeartbeat } from '@/game/systems/character/CarlitosHeartbeat';
 import { CharacterAnimator } from '@/game/systems/character/CharacterAnimator';
@@ -45,23 +54,45 @@ import { PauseFlow } from '@/game/systems/overlays/PauseFlow';
 import { RunnerLoopSystem, type RunnerLoopSnapshot } from '@/game/systems/runner/RunnerLoopSystem';
 import { prefersReducedMotion } from '@/ui/reducedMotion';
 
+interface StageTexture {
+  key: string;
+  url: string;
+}
+
 /**
- * URL map only — importing a URL costs nothing at runtime. Vite emits these as
- * separate files, so the bytes are fetched by JourneyScene.preload() when the
- * Black Forest stage starts and never during boot.
+ * Every stage's gameplay art, keyed by backdrop kind. URLs only — importing one
+ * costs nothing at runtime, because Vite emits these WebPs as separate files
+ * and puts only the emitted path in the JS. The bytes are fetched by
+ * `preload()` when that stage actually starts, so a player who never leaves the
+ * first world downloads neither of the other two.
  *
- * The full `bg-main` illustration is deliberately not here: gameplay draws the
- * plate (the same sheet with the eye and mouth lifted out so they can move),
- * while `bg-main` stays the level-entry screen's art and is loaded there under
- * its own texture key.
+ * `Record`, not a lookup with a default: a fourth world has to say what its art
+ * is, exactly like `JourneyStageTraits`. The complete Black Forest entry
+ * illustration is deliberately absent — gameplay draws the plate (the same
+ * drawing with the iris and mouth lifted out so they can move) while the entry
+ * version keeps them baked in and is loaded under its own texture key.
  */
-const blackForestAssetUrls: Record<keyof typeof BLACK_FOREST_TEXTURES, string> = {
-  bgPlate: blackForestBgPlateUrl,
-  layerFront: blackForestBgLayerFrontUrl,
-  eye: blackForestEyeUrl,
-  mouthClosed: blackForestMouthClosedUrl,
-  mouthMid: blackForestMouthMidUrl,
-  mouthOpen: blackForestMouthOpenUrl
+const stageTextures: Record<JourneyBackdropKind, readonly StageTexture[]> = {
+  'wounded-planet': [
+    { key: IMAGE_BACKDROP_PLANS['wounded-planet']!.plate.textureKey, url: woundedPlanetBgMainUrl }
+  ],
+  'moonlight-mountain': [
+    {
+      key: IMAGE_BACKDROP_PLANS['moonlight-mountain']!.plate.textureKey,
+      url: moonlightBgMainUrl
+    },
+    {
+      key: IMAGE_BACKDROP_PLANS['moonlight-mountain']!.overlay!.textureKey,
+      url: moonlightMoonArcsUrl
+    }
+  ],
+  'black-forest': [
+    { key: BLACK_FOREST_TEXTURES.plate, url: blackForestPlateUrl },
+    { key: BLACK_FOREST_TEXTURES.iris, url: blackForestIrisUrl },
+    { key: BLACK_FOREST_TEXTURES.mouthClosed, url: blackForestMouthClosedUrl },
+    { key: BLACK_FOREST_TEXTURES.mouthMid, url: blackForestMouthMidUrl },
+    { key: BLACK_FOREST_TEXTURES.mouthOpen, url: blackForestMouthOpenUrl }
+  ]
 };
 
 const SHARK_TEXTURE_KEY = 'shark-friend';
@@ -203,20 +234,15 @@ export class JourneyScene extends Phaser.Scene {
   }
 
   /**
-   * Stage-scoped art, fetched only when that stage is actually entered.
-   * BootScene stays a neutral loader: a player who never reaches Black Forest
-   * never downloads it, which matters on a phone.
+   * Stage-scoped art, fetched only when that stage is actually entered — one
+   * table lookup, no stage branch. BootScene stays a neutral loader: a player
+   * who never reaches the second or third world never downloads either one,
+   * which matters on a phone.
    */
   preload() {
-    if (this.stage.backdropKind !== 'black-forest') {
-      return;
-    }
-
-    (Object.keys(blackForestAssetUrls) as (keyof typeof blackForestAssetUrls)[]).forEach((name) => {
-      const key = BLACK_FOREST_TEXTURES[name];
-
-      if (!this.textures.exists(key)) {
-        this.load.image(key, blackForestAssetUrls[name]);
+    stageTextures[this.stage.backdropKind].forEach((texture) => {
+      if (!this.textures.exists(texture.key)) {
+        this.load.image(texture.key, texture.url);
       }
     });
   }
@@ -255,17 +281,7 @@ export class JourneyScene extends Phaser.Scene {
     this.emitVictoryState(false);
     this.emitFocusMode(false);
     this.emitUiScreen('playing');
-    // A stage may bring its own backdrop implementation. Black Forest is
-    // image-based with parallax, a tracking eye and a yawning mouth, which does
-    // not belong inside the Graphics-only painter.
-    this.backdropRenderer =
-      this.stage.backdropKind === 'black-forest'
-        ? new BlackForestBackdropRenderer(this, sessionState.snapshot().displayLevel)
-        : new BackdropRenderer(
-            this,
-            this.stage.backdropKind,
-            sessionState.snapshot().displayLevel
-          );
+    this.backdropRenderer = this.createStageBackdrop();
     this.heroShadow = this.add
       .ellipse(heroX, runnerConfig.visual.groundLineY + 8, 112, 22, 0x120b14, 0.18)
       .setDepth(1);
@@ -474,6 +490,7 @@ export class JourneyScene extends Phaser.Scene {
 
     this.backdropRenderer.update(deltaSeconds, time, {
       distanceTravelled: loopSnapshot.distanceTravelled,
+      levelProgress: loopSnapshot.levelProgress,
       surfaceProgress: loopSnapshot.surfaceProgress,
       finishRevealProgress: loopSnapshot.finishRevealProgress,
       environmentLevel,
@@ -667,6 +684,32 @@ export class JourneyScene extends Phaser.Scene {
     if (this.showDebug) {
       this.renderDebugOverlay(loopSnapshot, time);
     }
+  }
+
+  /**
+   * A stage brings its own backdrop implementation; the scene only picks it up.
+   *
+   * Wounded Planet and Moonlight Mountain are image-backed and share one
+   * plan-driven renderer. Black Forest keeps its own, because parallax, a
+   * tracking eye and a yawning mouth are not a plan entry. If a plate somehow
+   * did not load — an offline second visit, a decode failure — the stage falls
+   * back to the original Graphics painter rather than to an empty screen; that
+   * fallback is the only reason `BackdropRenderer` is still here.
+   */
+  private createStageBackdrop(): StageBackdrop {
+    const displayLevel = sessionState.snapshot().displayLevel;
+
+    if (this.stage.backdropKind === 'black-forest') {
+      return new BlackForestBackdropRenderer(this, displayLevel);
+    }
+
+    const plan = IMAGE_BACKDROP_PLANS[this.stage.backdropKind];
+
+    if (plan && this.textures.exists(plan.plate.textureKey)) {
+      return new ImageBackdropRenderer(this, plan, displayLevel);
+    }
+
+    return new BackdropRenderer(this, this.stage.backdropKind, displayLevel);
   }
 
   private bindAudioFeedback() {

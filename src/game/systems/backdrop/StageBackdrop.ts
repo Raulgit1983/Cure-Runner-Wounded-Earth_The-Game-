@@ -2,9 +2,11 @@
  * The contract `JourneyScene` talks to, so a stage can bring its own backdrop
  * implementation without the scene knowing which one it got.
  *
- * `BackdropRenderer` paints Wounded Planet and Moonlight Mountain with Graphics;
- * `BlackForestBackdropRenderer` composes Mateo's scanned sheet with parallax,
- * a tracking eye and a yawning mouth. They share nothing but this interface.
+ * `ImageBackdropRenderer` puts Mateo's scanned plates behind Wounded Planet and
+ * Moonlight Mountain; `BlackForestBackdropRenderer` composes his forest sheet
+ * with parallax, a tracking eye and a yawning mouth; `BackdropRenderer` is the
+ * original Graphics painter for stages 1-2, kept as the fallback for a plate
+ * that has not loaded. They share nothing but this interface.
  *
  * Everything a backdrop may react to arrives through `BackdropFrameTargets`.
  * Keep it that way: a `stage === '<key>'` branch in the scene is how the second
@@ -12,6 +14,13 @@
  */
 export interface BackdropFrameTargets {
   distanceTravelled: number;
+  /**
+   * 0..1 across the whole stage, straight from the runner's own level clock.
+   * Supplied to every backdrop and read by whichever one cares — the image-backed
+   * stages tie their bounded pan to it so a landscape plate is revealed exactly
+   * once over a run, whatever that stage's distance happens to be.
+   */
+  levelProgress: number;
   surfaceProgress: number;
   finishRevealProgress: number;
   environmentLevel: number;

@@ -1,5 +1,5 @@
 import moonlightMountainFinalUrl from '@/assets/entry/moonlight-mountain-ok.jpg';
-import blackForestBgMainUrl from '@/assets/worlds/black-forest/runtime/black-forest-bg-main.webp';
+import blackForestColorEntryUrl from '@/assets/worlds/black-forest/runtime/black-forest-color-entry-v4.webp';
 import planetHomeCutoutUrl from '@/assets/planet/planet-home-cutout.webp';
 import { runnerConfig } from '@/game/content/runnerConfig';
 import {
@@ -665,7 +665,7 @@ export const journeyStages: Record<JourneyStageKey, JourneyStageDefinition> = {
       accentColor: 0xd7e8c9,
       art: {
         textureKey: 'entry-art-black-forest',
-        imageUrl: blackForestBgMainUrl,
+        imageUrl: blackForestColorEntryUrl,
         maxWidth: 286,
         maxHeight: 200,
         y: 282
