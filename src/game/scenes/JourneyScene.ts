@@ -5,6 +5,8 @@ import { journeyConfig } from '@/game/content/journeyConfig';
 import {
   CHARACTER_RENDER_ORIGIN,
   getCharacter,
+  getFootOffsetPx,
+  getGameplayScale,
   type PlayableCharacter
 } from '@/game/content/playableCharacters';
 import { runnerConfig } from '@/game/content/runnerConfig';
@@ -14,6 +16,8 @@ import { localProgressStore } from '@/game/services/persistence/localProgressSto
 import { runTelemetryStore } from '@/game/services/telemetry/runTelemetryStore';
 import { sessionState } from '@/game/state/sessionState';
 import { BackdropRenderer } from '@/game/systems/backdrop/BackdropRenderer';
+import { CarlitosHeartbeat } from '@/game/systems/character/CarlitosHeartbeat';
+import { CharacterAnimator } from '@/game/systems/character/CharacterAnimator';
 import { EmotionController } from '@/game/systems/emotion/EmotionController';
 import { GuidanceDirector } from '@/game/systems/guidance/GuidanceDirector';
 import { DiscoveryFlow } from '@/game/systems/overlays/DiscoveryFlow';
@@ -41,19 +45,22 @@ const SUPPORTIVE_LINES = [
   'Hay camino.'
 ] as const;
 const SHARK_LINES = ['Respira.', 'Arriba.', 'Toma aire.'] as const;
-// Pose-switch tuning is shared by every playable character on purpose: the
-// jump arc, its timing and how a pose is chosen must feel identical no matter
-// who is on screen. Only the texture keys behind the poses vary per character.
-const HERO_HIT_POSE_LOCK_SECONDS = 0.15;
-const HERO_AIR_RISE_THRESHOLD = -32;
-const HERO_AIR_FALL_THRESHOLD = 32;
-const HERO_AIR_APEX_DEADZONE = 12;
 const HERO_FOOTING_VISUAL_OFFSET_Y = 4;
 /**
- * Texture keys are resolved from the active character's pose set at runtime,
- * so this is a plain string rather than a union of hardcoded hero keys.
+ * The runner's contract for "where the floor is": a grounded hero's support
+ * point sits this far below `heroY`. `RunnerLoopSystem` uses the same value for
+ * platform support, so matching it lands the drawing on ground AND on ledges.
  */
-type HeroTextureKey = string;
+const HERO_SUPPORT_OFFSET_PX = runnerConfig.visual.groundLineY - runnerConfig.hero.runY;
+/** How far a grounded character's visible feet may drift from its support. */
+const GROUNDED_FOOT_TOLERANCE_PX = 3;
+/**
+ * The run cycle is now authored art (contact/pass/push), so the procedural
+ * bob is scaled down while it plays to avoid stacking two bounces. It is a
+ * VISUAL amplitude only — the runner's physics, hitbox and timing are
+ * untouched. Set back to 1 to restore the pre-animation feel exactly.
+ */
+const RUN_CYCLE_BOB_SCALE = 0.55;
 
 export class JourneyScene extends Phaser.Scene {
   private readonly showDebug =
@@ -74,7 +81,14 @@ export class JourneyScene extends Phaser.Scene {
   private backdropRenderer!: BackdropRenderer;
   private heroShadow!: Phaser.GameObjects.Ellipse;
   private heroAura!: Phaser.GameObjects.Ellipse;
-  private hero!: Phaser.GameObjects.Image;
+  /**
+   * A Sprite (not an Image) purely so `Phaser.Animations` can drive the run
+   * cycle. Position, origin, depth, alpha, scale and rotation are still owned
+   * and written by this scene exactly as before.
+   */
+  private hero!: Phaser.GameObjects.Sprite;
+  private heroAnimator!: CharacterAnimator;
+  private carlitosHeartbeat!: CarlitosHeartbeat;
   private hitReaction!: Phaser.GameObjects.Container;
   private hitReactionText!: Phaser.GameObjects.Text;
   private pauseFlow!: PauseFlow;
@@ -87,16 +101,20 @@ export class JourneyScene extends Phaser.Scene {
   private debugGraphics?: Phaser.GameObjects.Graphics;
 
   private baseHeroScale = 1;
+  /**
+   * Per-character VISUAL correction only, derived from measured art metrics —
+   * never a hand-tuned constant, and never applied to physics. It aligns the
+   * drawing's visible feet with the support point the runner already uses.
+   */
+  private heroFootingOffsetY = 0;
   private heroRenderScaleX = 1;
   private heroRenderScaleY = 1;
-  private activeHeroTextureKey: HeroTextureKey = getCharacter(undefined).poses.main.key;
   private lastDebugEmit = 0;
   private victoryFrozen = false;
   private returnHomeQueued = false;
   private hitReactionTimer = 0;
   private hitReactionDuration = 0.56;
   private hitReactionStrength = 0;
-  private hitPoseLockTimer = 0;
   private sharkBurst = 0;
   private sharkCooldown = 3.8;
   private sharkDuration = 1.9;
@@ -141,8 +159,6 @@ export class JourneyScene extends Phaser.Scene {
     this.returnHomeQueued = false;
     this.hitReactionTimer = 0;
     this.hitReactionStrength = 0;
-    this.hitPoseLockTimer = 0;
-    this.activeHeroTextureKey = this.character.poses.main.key;
     this.sharkBurst = 0;
     this.sharkCooldown = 3.8;
     this.sharkActive = false;
@@ -168,18 +184,27 @@ export class JourneyScene extends Phaser.Scene {
       .setDepth(1);
     this.heroAura = this.add
       .ellipse(heroX - 8, heroY + 10, 110, 66, 0xa4ff68, 0.035)
-      .setDepth(2);
+      .setDepth(2)
+      .setVisible(false);
 
     this.hero = this.add
-      .image(heroX, heroY, this.character.poses.main.key)
+      .sprite(heroX, heroY, this.character.poses.main.key)
       .setOrigin(CHARACTER_RENDER_ORIGIN.x, CHARACTER_RENDER_ORIGIN.y)
       .setDepth(5);
-    this.activeHeroTextureKey = this.hero.texture.key as HeroTextureKey;
+    this.heroAnimator = new CharacterAnimator(this, this.hero, this.character);
+    this.carlitosHeartbeat = new CarlitosHeartbeat(this);
     const hitReaction = this.createHitReaction();
     this.hitReaction = hitReaction.container;
     this.hitReactionText = hitReaction.text;
 
-    this.baseHeroScale = this.character.mobileScale.preferredPx / this.hero.height;
+    this.baseHeroScale = getGameplayScale(this.character);
+    // Pack-v2 canvases carry ~85px of transparent padding under the character,
+    // so the drawing's feet stop well short of the support point while Carlitos'
+    // full-bleed canvas reached it. This closes exactly that gap.
+    this.heroFootingOffsetY =
+      HERO_SUPPORT_OFFSET_PX -
+      HERO_FOOTING_VISUAL_OFFSET_Y -
+      getFootOffsetPx(this.character, CHARACTER_RENDER_ORIGIN.y);
     this.heroRenderScaleX = this.baseHeroScale;
     this.heroRenderScaleY = this.baseHeroScale;
     this.hero.setScale(this.baseHeroScale);
@@ -189,7 +214,7 @@ export class JourneyScene extends Phaser.Scene {
       haltShark: () => this.haltSharkEvent(),
       clearHitReaction: () => {
         this.hitReactionTimer = 0;
-        this.hitPoseLockTimer = 0;
+        this.heroAnimator.clearTransient();
       },
       emitFocusMode: (active) => this.emitFocusMode(active),
       emitVictoryState: (active) => this.emitVictoryState(active),
@@ -272,7 +297,7 @@ export class JourneyScene extends Phaser.Scene {
       emitFocusMode: (active) => this.emitFocusMode(active),
       clearHitReaction: () => {
         this.hitReactionTimer = 0;
-        this.hitPoseLockTimer = 0;
+        this.heroAnimator.clearTransient();
       },
       restartRun: () => {
         this.emitFocusMode(false);
@@ -312,6 +337,9 @@ export class JourneyScene extends Phaser.Scene {
     // overlay. Overlay tweens run on the tween manager, so the panel still
     // animates; resuming simply continues from the frozen frame.
     if (this.pauseFlow.isOpen()) {
+      // Animations run on the animation manager, not on this update, so the
+      // run cycle has to be told to hold still behind the pause panel.
+      this.heroAnimator.setPaused(true);
       return;
     }
 
@@ -340,7 +368,6 @@ export class JourneyScene extends Phaser.Scene {
     this.feedback.awakening = Math.max(0, this.feedback.awakening - deltaSeconds * 1.5);
     this.finishFlow.decayPulse(deltaSeconds);
     this.hitReactionTimer = Math.max(0, this.hitReactionTimer - deltaSeconds);
-    this.hitPoseLockTimer = Math.max(0, this.hitPoseLockTimer - deltaSeconds);
     this.sharkBurst = Math.max(0, this.sharkBurst - deltaSeconds * 2.8);
 
     const emotionalLevel = Phaser.Math.Clamp(
@@ -377,8 +404,16 @@ export class JourneyScene extends Phaser.Scene {
     this.finishFlow.update(time, loopSnapshot, this.failFlow.isResolved());
     this.failFlow.update();
 
+    // Pose/animation selection sits exactly where the old texture switcher did
+    // — after finish resolves this frame, before the hero block reads it.
+    this.heroAnimator.update(deltaSeconds, loopSnapshot, this.finishFlow.isResolved());
+
+    // Damped while the authored run cycle plays so the drawn bounce and the
+    // procedural bob do not stack into a double bounce. Visual only.
     const runBob = loopSnapshot.grounded
-      ? Math.sin(loopSnapshot.distanceTravelled * 0.095) * (2 + snapshot.displayLevel * 3.6)
+      ? Math.sin(loopSnapshot.distanceTravelled * 0.095) *
+        (2 + snapshot.displayLevel * 3.6) *
+        (this.heroAnimator.isRunCycleActive() ? RUN_CYCLE_BOB_SCALE : 1)
       : 0;
     const breath = Math.sin(time * 0.0022 + snapshot.displayLevel * 2.8) * 0.012;
     const driftLift = loopSnapshot.grounded ? 0 : Math.sin(time * 0.0021) * 1.4;
@@ -424,10 +459,9 @@ export class JourneyScene extends Phaser.Scene {
 
     this.heroRenderScaleX = Phaser.Math.Linear(this.heroRenderScaleX, targetScaleX, 0.16);
     this.heroRenderScaleY = Phaser.Math.Linear(this.heroRenderScaleY, targetScaleY, 0.16);
-    this.updateHeroTexture(loopSnapshot);
 
     const heroBaseX = loopSnapshot.heroX - this.feedback.impact * 6 - this.sharkBurst * 3;
-    const heroBaseY =
+    const heroRawY =
       loopSnapshot.heroY +
       runBob +
       impactDrop -
@@ -436,7 +470,14 @@ export class JourneyScene extends Phaser.Scene {
       driftLift -
       loopSnapshot.surfaceProgress * 6 -
       victoryBounce +
-      HERO_FOOTING_VISUAL_OFFSET_Y;
+      HERO_FOOTING_VISUAL_OFFSET_Y +
+      this.heroFootingOffsetY;
+    // Keep the drawing's feet on whatever it is standing on. The collect lift
+    // and hit drop still move the body, but while grounded they may not carry
+    // it off the floor (or sink it into one) by more than the tolerance —
+    // together with `heroFootingOffsetY` this is what stops the "floating
+    // Devilz" read. Airborne frames and the finish lift are untouched.
+    const heroBaseY = heroRawY + this.groundedFootCorrection(heroRawY, loopSnapshot, finishResolved);
     // Scale the whole celebration float by finishFloatProgress so the gentle
     // post-contact drift eases in from zero. Previously the sin/cos terms were
     // already at full amplitude the instant the contact beat began, which read
@@ -473,23 +514,30 @@ export class JourneyScene extends Phaser.Scene {
       0.18
     );
 
-    this.heroAura
-      .setPosition(this.hero.x - 8, this.hero.y + 8)
-      .setScale(
-        (renderMood.auraSize / 122) *
-          (1 + this.feedback.chain * 0.12 + loopSnapshot.collectBurst * 0.05 + loopSnapshot.finishRevealProgress * 0.14),
-        0.7 + environmentLevel * 0.18 + this.feedback.awakening * 0.06
-      )
-      .setRotation(this.hero.rotation * 0.35)
-      .setFillStyle(
-        renderMood.auraColor,
-        renderMood.auraAlpha * 0.22 +
-          this.feedback.collect * 0.04 +
-          this.feedback.chain * 0.05 +
-          this.feedback.awakening * 0.05 +
-          loopSnapshot.surfaceProgress * 0.05 +
-          this.finishFlow.getPulse() * 0.08
-      );
+    // Purely transient now. The two steady terms that used to sit in here
+    // (`auraAlpha * 0.22` and `surfaceProgress * 0.05`) never reached zero, so
+    // the character carried a permanent ellipse around it for the whole run.
+    // Collect / chain / awakening / finish still flash exactly as before, and
+    // the aura is hidden outright once they decay so no static ellipse is left.
+    const auraAlpha =
+      this.feedback.collect * 0.04 +
+      this.feedback.chain * 0.05 +
+      this.feedback.awakening * 0.05 +
+      this.finishFlow.getPulse() * 0.08;
+
+    this.heroAura.setVisible(auraAlpha > 0.004);
+
+    if (this.heroAura.visible) {
+      this.heroAura
+        .setPosition(this.hero.x - 8, this.hero.y + 8)
+        .setScale(
+          (renderMood.auraSize / 122) *
+            (1 + this.feedback.chain * 0.12 + loopSnapshot.collectBurst * 0.05 + loopSnapshot.finishRevealProgress * 0.14),
+          0.7 + environmentLevel * 0.18 + this.feedback.awakening * 0.06
+        )
+        .setRotation(this.hero.rotation * 0.35)
+        .setFillStyle(renderMood.auraColor, auraAlpha);
+    }
 
     this.heroShadow
       .setPosition(this.hero.x - 6, runnerConfig.visual.groundLineY + 7)
@@ -507,6 +555,15 @@ export class JourneyScene extends Phaser.Scene {
       );
 
     this.updateHitReaction();
+
+    // "El Latido de Carlitos": a read-only mirror of the reserve the runner
+    // already tracks. It never grants or consumes anything.
+    this.carlitosHeartbeat.update(
+      this.hero.x,
+      this.hero.y,
+      time,
+      snapshot.recoveryChances > 0 && !finishResolved && !this.failFlow.isResolved()
+    );
 
     if (this.showDebug) {
       this.renderDebugOverlay(loopSnapshot, time);
@@ -566,6 +623,7 @@ export class JourneyScene extends Phaser.Scene {
       if (event.type === 'reserve_fill') {
         this.feedback.collect = Math.max(this.feedback.collect, 0.34);
         this.feedback.awakening = Math.max(this.feedback.awakening, 0.24);
+        this.carlitosHeartbeat.onReserveFilled();
 
         if (!this.failFlow.isResolved() && !this.finishFlow.isResolved()) {
           if (this.guidance.showOnce('reserve_gain')) {
@@ -579,6 +637,7 @@ export class JourneyScene extends Phaser.Scene {
       if (event.type === 'reserve_spent') {
         this.feedback.collect = Math.max(this.feedback.collect, 0.26);
         this.feedback.awakening = Math.max(this.feedback.awakening, 0.14);
+        this.carlitosHeartbeat.onReserveSpent(this.hero.x, this.hero.y);
 
         if (!this.failFlow.isResolved() && !this.finishFlow.isResolved() && this.guidance.showOnce('reserve_spent')) {
           this.discoveryFlow.trigger('reserve_spent', this.time.now);
@@ -590,6 +649,7 @@ export class JourneyScene extends Phaser.Scene {
   private handleShutdown() {
     this.pauseFlow.destroy();
     this.discoveryFlow.hide();
+    this.carlitosHeartbeat?.destroy();
     this.emitVictoryState(false);
     this.emitFocusMode(false);
     this.offAudioCue?.();
@@ -721,7 +781,7 @@ export class JourneyScene extends Phaser.Scene {
     this.feedback.collect = Math.max(this.feedback.collect, 0.28);
     this.feedback.awakening = Math.max(this.feedback.awakening, 0.2);
     this.hitReactionTimer = 0;
-    this.hitPoseLockTimer = 0;
+    this.heroAnimator.clearTransient();
     this.emitGuidanceLine(MOONLIGHT_OPPORTUNITY_LINE, 2100, this.time.now);
     this.cameras.main.flash(110, 206, 242, 255, false);
     audioCueBus.emit({
@@ -735,100 +795,39 @@ export class JourneyScene extends Phaser.Scene {
     this.hitReactionText.setText(text).setFontSize(strength > 0 ? 17 : 16);
     this.hitReactionTimer = this.hitReactionDuration;
     this.hitReactionStrength = strength;
-    this.hitPoseLockTimer = Math.max(this.hitPoseLockTimer, HERO_HIT_POSE_LOCK_SECONDS);
+    this.heroAnimator.noteHit();
     this.hitReaction.setVisible(true).setAlpha(1).setScale(0.94 + strength * 0.05);
   }
 
-  private updateHeroTexture(loopSnapshot: RunnerLoopSnapshot) {
-    const nextTextureKey = this.resolveHeroTextureKey(loopSnapshot);
-    const currentTextureKey = this.hero.texture.key as HeroTextureKey;
-
-    if (currentTextureKey === nextTextureKey) {
-      this.activeHeroTextureKey = currentTextureKey;
-      return;
-    }
-
-    this.hero.setTexture(nextTextureKey);
-    this.activeHeroTextureKey = nextTextureKey;
-  }
-
   /**
-   * The one pose switcher, shared by every playable character. Priority order,
-   * thresholds and hysteresis are identical for all of them — only the texture
-   * keys come from the active character's pose set.
+   * How far to nudge the sprite so its visible feet stay on the support point
+   * the runner is already using (ground line or platform top — `heroY +
+   * HERO_SUPPORT_OFFSET_PX` is both). Returns 0 while airborne or during the
+   * finish lift, and 0 whenever the feet are already inside the tolerance band,
+   * so ordinary bob and squash are preserved.
    *
-   * Every optional pose stays behind a `textures.exists()` guard, so a
-   * character that ships without an air or finish pose silently falls through
-   * to its own `main` texture instead of rendering a missing/other-character
-   * texture.
+   * Visual only: nothing here feeds back into physics or collision.
    */
-  private resolveHeroTextureKey(loopSnapshot: RunnerLoopSnapshot): HeroTextureKey {
-    const poses = this.character.poses;
-    const mainKey = poses.main.key;
-    const hitKey = poses.hit?.key;
-    const riseKey = poses.jumpRise?.key;
-    const fallKey = poses.jumpFall?.key;
-    const finishKey = poses.finishAwakened?.key;
-    const hasTexture = (key: string | undefined): key is string =>
-      Boolean(key) && this.textures.exists(key!);
-
-    if (this.finishFlow.isResolved() && hasTexture(finishKey)) {
-      return finishKey;
+  private groundedFootCorrection(
+    heroRawY: number,
+    loopSnapshot: RunnerLoopSnapshot,
+    finishResolved: boolean
+  ) {
+    if (!loopSnapshot.grounded || finishResolved) {
+      return 0;
     }
 
-    if (this.hitPoseLockTimer > 0 && hasTexture(hitKey)) {
-      return hitKey;
-    }
+    const metrics = this.character.artMetrics;
+    const footBelowAnchorPx =
+      (metrics.groundedBaselineRow - CHARACTER_RENDER_ORIGIN.y * metrics.sourceHeight) *
+      this.heroRenderScaleY;
+    const supportY = loopSnapshot.heroY + HERO_SUPPORT_OFFSET_PX;
+    const drift = supportY - (heroRawY + footBelowAnchorPx);
 
-    if (loopSnapshot.grounded) {
-      return mainKey;
-    }
-
-    const velocityY = loopSnapshot.velocityY;
-
-    if (velocityY <= HERO_AIR_RISE_THRESHOLD && hasTexture(riseKey)) {
-      return riseKey;
-    }
-
-    if (velocityY >= HERO_AIR_FALL_THRESHOLD && hasTexture(fallKey)) {
-      return fallKey;
-    }
-
-    // Keep the previous air pose through the apex to avoid rise/fall flicker.
-    if (Math.abs(velocityY) <= HERO_AIR_APEX_DEADZONE) {
-      if (
-        this.activeHeroTextureKey === riseKey ||
-        this.activeHeroTextureKey === fallKey
-      ) {
-        return this.activeHeroTextureKey;
-      }
-    }
-
-    if (
-      this.activeHeroTextureKey === riseKey &&
-      velocityY < HERO_AIR_FALL_THRESHOLD &&
-      hasTexture(riseKey)
-    ) {
-      return riseKey;
-    }
-
-    if (
-      this.activeHeroTextureKey === fallKey &&
-      velocityY > HERO_AIR_RISE_THRESHOLD &&
-      hasTexture(fallKey)
-    ) {
-      return fallKey;
-    }
-
-    if (velocityY < 0 && hasTexture(riseKey)) {
-      return riseKey;
-    }
-
-    if (hasTexture(fallKey)) {
-      return fallKey;
-    }
-
-    return mainKey;
+    return (
+      drift -
+      Phaser.Math.Clamp(drift, -GROUNDED_FOOT_TOLERANCE_PX, GROUNDED_FOOT_TOLERANCE_PX)
+    );
   }
 
   private updateHitReaction() {

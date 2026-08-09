@@ -4,7 +4,7 @@ import { importWithRecovery } from '@/app/importWithRecovery';
 import sharkTextureUrl from '@/assets/creatures/tiburoncin-ok.png';
 import { journeyStages, type JourneyStageKey } from '@/game/content/journeyStages';
 import { getFirstLevel } from '@/game/content/levels/levelRegistry';
-import { listAllCharacterPoses } from '@/game/content/playableCharacters';
+import { listRuntimeCharacterPoses } from '@/game/content/playableCharacters';
 import { UI_FONT_STACK, uiTextResolution } from '@/ui/phaserTextStyle';
 
 const loadJourneyScene = () => import('@/game/scenes/JourneyScene');
@@ -33,9 +33,10 @@ export class BootScene extends Phaser.Scene {
     // never a readable "loading screen".
     this.cameras.main.setBackgroundColor('#0b1017');
 
-    // Every playable character's poses, straight from the registry — adding a
-    // character is a registry entry, not another load line here.
-    listAllCharacterPoses().forEach((pose) => {
+    // Every runtime pose, straight from the registry — adding a character (or a
+    // pose) is a registry entry, not another load line here. Preview sheets and
+    // GIFs from the animation pack are QA material and are never loaded.
+    listRuntimeCharacterPoses().forEach((pose) => {
       this.load.image(pose.key, pose.url);
     });
 

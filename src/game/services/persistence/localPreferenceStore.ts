@@ -1,4 +1,8 @@
-import { DEFAULT_CHARACTER_ID, isPlayableCharacterId, type PlayableCharacterId } from '@/game/content/playableCharacters';
+import {
+  DEFAULT_CHARACTER_ID,
+  resolveSelectableCharacterId,
+  type PlayableCharacterId
+} from '@/game/content/playableCharacters';
 
 /**
  * Deliberately a SEPARATE localStorage key from `localProgressStore`'s
@@ -16,7 +20,15 @@ interface StoredPreferences {
 }
 
 export const localPreferenceStore = {
-  /** Never throws and never returns an unknown id — always a playable default. */
+  /**
+   * Never throws and never returns an id that cannot be played.
+   *
+   * Migration: `hero` (Carlitos) used to be a valid stored choice and is now a
+   * support power rather than a playable character. A save that still names him
+   * — like any unknown or corrupt value — resolves to the default Devilz here.
+   * Nothing is deleted or rewritten: no other preference and no progress is
+   * touched, and the stale value is simply ignored until the player picks again.
+   */
   loadCharacterId(): PlayableCharacterId {
     if (typeof window === 'undefined') {
       return DEFAULT_CHARACTER_ID;
@@ -31,7 +43,7 @@ export const localPreferenceStore = {
 
       const parsed = JSON.parse(raw) as Partial<StoredPreferences>;
 
-      return isPlayableCharacterId(parsed.characterId) ? parsed.characterId : DEFAULT_CHARACTER_ID;
+      return resolveSelectableCharacterId(parsed.characterId);
     } catch {
       return DEFAULT_CHARACTER_ID;
     }
