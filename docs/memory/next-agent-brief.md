@@ -8,11 +8,18 @@ updated: 2026-08-09
 Read this before touching the repo. Pair with [project-current-state.md](project-current-state.md).
 
 ## Status assumptions
-- Repo compiles: `npm run check`, `npm run build` and `npm test` (**114 tests**) are green as of 2026-08-09.
-- **Uncommitted local work on top of `03382fc`:** the Black Forest eye + yawn integration (approved art pass, six runtime assets, `blackForestYawn.ts` + its tests, a generic hero-position field group on `BackdropFrameTargets`). Not committed, not pushed, by instruction.
-- Active work line: three playable stages, three playable characters. The last batch was the Devilz animation pack, the Tiburoncín flash fix and The Black Forest.
-- **Five commits are local only and have NOT been pushed**: the four-commit functional batch (`da731e0`, `c256b85`, `1eb0033`, `bf900b1`) plus the documentation commit `03382fc`, which is `HEAD`. Do not push without Raúl saying so.
-- `dist/` is gitignored; do not commit build output.
+- Repo compiles: `npm run check`, `npm run build` and `npm test` (**280 tests**) are green as of 2026-08-09.
+- **All three stages are now image-backed by Mateo's scanned drawings.** Wounded
+  Planet and Moonlight Mountain share the plan-driven `ImageBackdropRenderer`;
+  Black Forest keeps its own renderer for the eye, the yawn and the parallax.
+  The Graphics-only `BackdropRenderer` survives ONLY as the not-loaded fallback.
+- **Deployed to GitHub Pages on 2026-08-09 on Raúl's explicit instruction**, by
+  merging `visual/world-01-carlitos-drive` into `main`. Before that the live
+  site was 33 commits behind. This build has still **never run on real hardware**
+  — everything is verified in headless Chrome at a 390x844 / DPR 2 viewport.
+- `dist/` is gitignored; do not commit build output. `art-lab/` is gitignored too
+  (~106 MB of art working material, kept on disk like `Imagenes/`); the accepted
+  output of an art pass is copied into `src/assets/worlds/` and committed there.
 
 ## Architecture facts (do not re-derive)
 - Scenes orchestrate; rules live in `systems/`; values in `content/`; persistence behind `services/`.
@@ -29,11 +36,36 @@ Read this before touching the repo. Pair with [project-current-state.md](project
 4. **`FinishFlow`'s per-frame contract** is still the sharpest edge: `advance` → `decayPulse` → `update`, the last strictly before the hero block. Do not reorder without a browser smoke test of the finish sequence.
 5. Adding a stage means adding a `JourneyStageTraits` entry, a `STAGE_OVERLAY_COPY` entry and a `stageRules` entry in `phraseFairness.test.ts`. TypeScript will tell you; the fairness test will check your data.
 
+## Backdrop treatment (added 2026-08-09, do not "fix" back)
+- The readability layer is a **vertical grade, not a flat veil**: weakest at the
+  top of the screen, full strength across the play band. That is deliberate —
+  the upper art wants to be left alone and the lane the player reads wants to be
+  quiet. Net effect on Wounded Planet, measured: art region mean luminance
+  127 -> 139 and RMS contrast 18.4 -> 22.3 (Mateo's pencils MORE present than
+  under the old flat veil), play band mean 104 -> 97. Shape lives in
+  `BACKDROP_GRADE_SHAPE`; per-stage strength is `plan.veil.restAlpha/litAlpha`,
+  which now means the alpha at the STRONGEST stop, not a uniform alpha.
+- Black Forest's plate is a band across the upper screen, so both its horizontal
+  edges are feathered into the sky colour (`featherBands`). Without it the
+  illustration ended on a cut line across the night.
+- `BG_PARALLAX_LIMIT` is **derived from the framing**, never hand-set. A hand-set
+  30 px against a 20 px right-hand bleed used to pull the plate off the right
+  edge and leave a 10 px strip of bare sky beside the drawing for the whole
+  second half of every run. `blackForestArt.test.ts` bounds it.
+
 ## Highest-priority next slices
-1. **Real-phone pass.** Everything so far was verified in headless Chromium at an iPhone-13 viewport. Three stages, three characters and an image backdrop have never run on real hardware. This is the biggest open risk.
-2. **Black Forest creative decisions (Raúl's).** Ingredient, closing message and the Chomper boss all ship as explicit `[PENDIENTE DE RAÚL]` placeholders.
-3. ~~Eye / mouth re-export decision~~ — **done 2026-08-09, local only.** Both behaviours are wired off an approved art pass. Do not "fix" them back: the eye must rest at offset (0,0) and stay inside ±7/±3.5 source px, and the mouth's rest phase is closed. See `BlackForestBackdropRenderer`'s class doc.
-4. Expand `LevelDefinition` so it actually drives tuning, phrase pools and mechanic flags.
+1. **Real-phone pass.** Everything so far was verified in headless Chrome at a
+   390x844 / DPR 2 viewport. Three stages, three characters and three image
+   backdrops have never run on real hardware — and the build is now public.
+   This is the biggest open risk.
+2. **Black Forest still has dead space.** The plate occupies y 87..383 of a 640
+   tall canvas, so the whole play band is flat sky with no material, while
+   stages 1-2 have Mateo's paper texture edge to edge. The feather softened the
+   seams; it did not fill the void. Re-framing the band is an art-direction call
+   and belongs to Codex/Raúl, not to a code slice.
+3. **Black Forest creative decisions (Raúl's).** Ingredient, closing message and the Chomper boss all ship as explicit `[PENDIENTE DE RAÚL]` placeholders — and they are now live on the public build.
+4. ~~Eye / mouth re-export decision~~ — **done 2026-08-09.** Both behaviours are wired off an approved art pass. Do not "fix" them back: the eye must rest at offset (0,0) and stay inside ±7/±3.5 source px, and the mouth's rest phase is closed. See `BlackForestBackdropRenderer`'s class doc.
+5. Expand `LevelDefinition` so it actually drives tuning, phrase pools and mechanic flags.
 
 ## Validation commands (run before closing any slice)
 ```

@@ -10,9 +10,21 @@ dist
 *.p12
 *.pfx
 
+# Isolated Claude implementation worktrees orchestrated and reviewed by Codex.
+/.claude/worktrees/
+
+# Editor-local settings.
+/.vscode/
+
 # Unused source/reference image drafts — kept on disk, never bundled at runtime.
 # Runtime art lives under src/assets/<domain>/ and is imported explicitly.
 /Imagenes/
+
+# Codex's art working directory: masters, contact sheets, calibration renders and
+# review notes. ~106 MB of PNG/WebP that nothing imports — the accepted output of
+# an art pass is copied into src/assets/worlds/ and committed there instead.
+# Kept on disk exactly like /Imagenes/, never in git history.
+/art-lab/
 /src/assets/hero/phase1-png/
 /Heroe del juego.png
 /Heroe.jpeg

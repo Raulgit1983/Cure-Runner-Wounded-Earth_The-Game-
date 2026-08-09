@@ -451,10 +451,10 @@ These three rules sit above ordinary implementation decisions. When a task seems
 
 ## Operating protocol (aligned with La Manigua)
 
-- **Model routing** — declare the tier before each task: **Light** (Sonnet — mechanical, already-specified changes), **Medium** (Sonnet — verification, or a plan with defined steps), **High** (Fable — genuine ambiguity, undiagnosed problems, new architecture). Never spend more compute than the task needs; never at the cost of quality.
+- **Model routing** — declare the tier before each task: **Light** (`claude-sonnet-5` — mechanical, already-specified changes) and **High** (`claude-opus-5` — genuinely difficult implementation, ambiguity, undiagnosed problems, new architecture, or long-horizon work). Use high/xhigh/max effort only when the slice benefits from it. **Fable 5 is forbidden:** on Raúl's Claude Pro plan it requires paid usage credits, and no agent may enable or spend them without a new explicit authorization from Raúl. For Opus 5 use the Claude Code 2.1.226 binary bundled in the active Antigravity extension, not the older standalone 2.1.204 executable. Record the resolved model ID. The canonical stack contract is `docs/memory/production-stack-orchestration.md`.
 - **What persists vs. what doesn't** — decisions, corrections, and principles a future session needs (like the Creative DNA section above) live here or in docs/memory/, not repeated in chat. One-off task instructions are given directly and aren't archived separately.
 - **Report signature** — close each slice summary with model + effort + date, so it's possible to see later which model handled what.
-- **Scale to fit** — this is one developer working with Claude Code, not a multi-agent production. Don't import a multi-surface topology here; the two points above are what actually transfer from the wider protocol.
+- **Two-agent topology** — Raúl is the human authority; Codex is the default supervisor, art/image lead, integrator, and QA owner; Claude Opus 5 is the implementation worker for difficult code. Claude edits only in its isolated task worktree when invoked by Codex. Never call Codex from inside a Codex-led Claude task; request image work through the shared task manifest. Never push or deploy, and never touch the main checkout. Read root `AGENTS.md` and `docs/memory/production-stack-orchestration.md` for the complete handoff and review contract.
 
 ---
 
