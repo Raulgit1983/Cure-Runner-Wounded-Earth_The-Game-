@@ -1,5 +1,8 @@
 import Phaser from 'phaser';
 
+import blackForestBgLayerFrontUrl from '@/assets/worlds/black-forest/runtime/black-forest-bg-layer-front.webp';
+import blackForestBgMainUrl from '@/assets/worlds/black-forest/runtime/black-forest-bg-main.webp';
+
 import { journeyStages, type JourneyStageDefinition, type JourneyStageKey } from '@/game/content/journeyStages';
 import { journeyConfig } from '@/game/content/journeyConfig';
 import {
@@ -16,6 +19,11 @@ import { localProgressStore } from '@/game/services/persistence/localProgressSto
 import { runTelemetryStore } from '@/game/services/telemetry/runTelemetryStore';
 import { sessionState } from '@/game/state/sessionState';
 import { BackdropRenderer } from '@/game/systems/backdrop/BackdropRenderer';
+import {
+  BLACK_FOREST_TEXTURES,
+  BlackForestBackdropRenderer
+} from '@/game/systems/backdrop/BlackForestBackdropRenderer';
+import type { StageBackdrop } from '@/game/systems/backdrop/StageBackdrop';
 import { CarlitosHeartbeat } from '@/game/systems/character/CarlitosHeartbeat';
 import { CharacterAnimator } from '@/game/systems/character/CharacterAnimator';
 import { EmotionController } from '@/game/systems/emotion/EmotionController';
@@ -32,6 +40,16 @@ import {
 import { PauseFlow } from '@/game/systems/overlays/PauseFlow';
 import { RunnerLoopSystem, type RunnerLoopSnapshot } from '@/game/systems/runner/RunnerLoopSystem';
 import { prefersReducedMotion } from '@/ui/reducedMotion';
+
+/**
+ * URL map only — importing a URL costs nothing at runtime. Vite emits these as
+ * separate files, so the bytes are fetched by JourneyScene.preload() when the
+ * Black Forest stage starts and never during boot.
+ */
+const blackForestAssetUrls = {
+  bgMain: blackForestBgMainUrl,
+  layerFront: blackForestBgLayerFrontUrl
+} as const;
 
 const SHARK_TEXTURE_KEY = 'shark-friend';
 /**
@@ -89,7 +107,7 @@ export class JourneyScene extends Phaser.Scene {
   /** Resolved once per `create()` from the saved preference; drives poses + scale only. */
   private character: PlayableCharacter = getCharacter(undefined);
 
-  private backdropRenderer!: BackdropRenderer;
+  private backdropRenderer!: StageBackdrop;
   private heroShadow!: Phaser.GameObjects.Ellipse;
   private heroAura!: Phaser.GameObjects.Ellipse;
   /**
@@ -163,6 +181,25 @@ export class JourneyScene extends Phaser.Scene {
     this.stage = journeyStages[this.stageKey] ?? journeyStages['wounded-planet'];
   }
 
+  /**
+   * Stage-scoped art, fetched only when that stage is actually entered.
+   * BootScene stays a neutral loader: a player who never reaches Black Forest
+   * never downloads it, which matters on a phone.
+   */
+  preload() {
+    if (this.stage.backdropKind !== 'black-forest') {
+      return;
+    }
+
+    (Object.keys(blackForestAssetUrls) as (keyof typeof blackForestAssetUrls)[]).forEach((name) => {
+      const key = BLACK_FOREST_TEXTURES[name];
+
+      if (!this.textures.exists(key)) {
+        this.load.image(key, blackForestAssetUrls[name]);
+      }
+    });
+  }
+
   create() {
     // Ensure camera starts clean after scene.restart() —
     // previous fadeOut may leave residual alpha on the new camera.
@@ -192,16 +229,22 @@ export class JourneyScene extends Phaser.Scene {
     this.sharkGuidanceIndex = 0;
     this.lastSeenPhraseId = '';
     this.guidance.reset();
-    this.moonlightOpportunityAvailable = this.stage.backdropKind === 'moonlight-mountain';
+    this.moonlightOpportunityAvailable = this.stage.traits.offersSecondChance;
 
     this.emitVictoryState(false);
     this.emitFocusMode(false);
     this.emitUiScreen('playing');
-    this.backdropRenderer = new BackdropRenderer(
-      this,
-      this.stage.backdropKind,
-      sessionState.snapshot().displayLevel
-    );
+    // A stage may bring its own backdrop implementation. Black Forest is
+    // image-based with parallax, a tracking eye and a yawning mouth, which does
+    // not belong inside the Graphics-only painter.
+    this.backdropRenderer =
+      this.stage.backdropKind === 'black-forest'
+        ? new BlackForestBackdropRenderer(this, sessionState.snapshot().displayLevel)
+        : new BackdropRenderer(
+            this,
+            this.stage.backdropKind,
+            sessionState.snapshot().displayLevel
+          );
     this.heroShadow = this.add
       .ellipse(heroX, runnerConfig.visual.groundLineY + 8, 112, 22, 0x120b14, 0.18)
       .setDepth(1);
@@ -311,7 +354,7 @@ export class JourneyScene extends Phaser.Scene {
       replayCurrentStage: () => this.finishFlow.requestReplay(),
       returnToStart: () => this.returnToStart()
     });
-    this.failFlow = new FailFlow(this, this.stage.backdropKind === 'moonlight-mountain', this.showDebug, {
+    this.failFlow = new FailFlow(this, this.stageKey, this.showDebug, {
       canFail: () => !this.finishFlow.isResolved(),
       closePause: () => this.pauseFlow.close(false),
       hideDiscovery: () => this.discoveryFlow.hide(),
@@ -674,6 +717,7 @@ export class JourneyScene extends Phaser.Scene {
     this.pauseFlow.destroy();
     this.discoveryFlow.hide();
     this.carlitosHeartbeat?.destroy();
+    this.backdropRenderer?.destroy();
     // Kill the exit fade and park the shark so a restarted scene can never
     // inherit an in-flight tween or an on-screen transform.
     this.hideShark();
@@ -798,7 +842,7 @@ export class JourneyScene extends Phaser.Scene {
   }
 
   private tryMoonlightOpportunity() {
-    if (!this.moonlightOpportunityAvailable || this.stage.backdropKind !== 'moonlight-mountain') {
+    if (!this.moonlightOpportunityAvailable || !this.stage.traits.offersSecondChance) {
       return false;
     }
 
@@ -1111,7 +1155,7 @@ export class JourneyScene extends Phaser.Scene {
         (
           loopSnapshot.currentPhraseId === 'onboarding_shark' ||
           (
-            this.stage.backdropKind === 'moonlight-mountain' &&
+            this.stage.traits.sharkIntro === 'progress' &&
             loopSnapshot.currentPhraseFamily === 'onboarding' &&
             loopSnapshot.levelProgress >= 0.18
           )

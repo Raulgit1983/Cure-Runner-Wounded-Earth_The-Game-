@@ -87,7 +87,10 @@ const stageRules: Record<
   { hazardGapMin: number; duckClearanceMin: number }
 > = {
   'wounded-planet': { hazardGapMin: 118, duckClearanceMin: 5 },
-  'moonlight-mountain': { hazardGapMin: 130, duckClearanceMin: 20 }
+  'moonlight-mountain': { hazardGapMin: 130, duckClearanceMin: 20 },
+  // Black Forest reuses the moonlight vocabulary, so it is held to the same
+  // fairness floors rather than the looser legacy Level 1 ones.
+  'black-forest': { hazardGapMin: 130, duckClearanceMin: 20 }
 };
 
 const stages = Object.values(journeyStages) as JourneyStageDefinition[];

@@ -1,14 +1,10 @@
 import Phaser from 'phaser';
 
 import { journeyConfig } from '@/game/content/journeyConfig';
+import type { JourneyStageKey } from '@/game/content/journeyStages';
 import {
-  FAIL_BODY,
-  FAIL_CLOSING,
-  FAIL_TITLE,
+  STAGE_OVERLAY_COPY,
   HOME_BUTTON_LABEL,
-  MOONLIGHT_FAIL_BODY,
-  MOONLIGHT_FAIL_CLOSING,
-  MOONLIGHT_FAIL_TITLE,
   REPLAY_BUTTON_LABEL
 } from '@/game/content/overlayText';
 import { createPanelButton } from '@/ui/panelButton';
@@ -56,7 +52,7 @@ export class FailFlow {
 
   constructor(
     private readonly scene: Phaser.Scene,
-    private readonly isMoonlight: boolean,
+    private readonly stageKey: JourneyStageKey,
     private readonly showDebug: boolean,
     private readonly host: FailFlowHost
   ) {
@@ -200,7 +196,7 @@ export class FailFlow {
     panel.fillCircle(80, -30, 2);
 
     const title = this.scene.add
-      .text(0, -34, this.isMoonlight ? MOONLIGHT_FAIL_TITLE : FAIL_TITLE, {
+      .text(0, -34, STAGE_OVERLAY_COPY[this.stageKey].failTitle, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '17px',
         color: '#fff8ef',
@@ -212,7 +208,7 @@ export class FailFlow {
       .setResolution(2)
       .setShadow(0, 1, '#04070b', 3, false, true);
     const body = this.scene.add
-      .text(0, 2, this.isMoonlight ? MOONLIGHT_FAIL_BODY : FAIL_BODY, {
+      .text(0, 2, STAGE_OVERLAY_COPY[this.stageKey].failBody, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '14px',
         color: '#f3f0e8',
@@ -226,7 +222,7 @@ export class FailFlow {
       .setResolution(2)
       .setShadow(0, 1, '#04070b', 2, false, true);
     const closing = this.scene.add
-      .text(0, 34, this.isMoonlight ? MOONLIGHT_FAIL_CLOSING : FAIL_CLOSING, {
+      .text(0, 34, STAGE_OVERLAY_COPY[this.stageKey].failClosing, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '12px',
         color: '#cfe8d9',

@@ -722,7 +722,7 @@ export class RunnerLoopSystem {
     const height = 18;
     const container = this.scene.add.container(0, 0).setDepth(3.25);
     const halo = this.scene.add
-      .ellipse(0, 2, width * 0.78, 22, mood.sparkColor, this.stage.backdropKind === 'moonlight-mountain' ? 0.1 : 0.06)
+      .ellipse(0, 2, width * 0.78, 22, mood.sparkColor, this.stage.traits.paletteVariant === 'cool' ? 0.1 : 0.06)
       .setBlendMode(Phaser.BlendModes.ADD);
 
     const primary: PaintableShape[] = [
@@ -1010,7 +1010,9 @@ export class RunnerLoopSystem {
 
   private paintCollectible(entity: RunnerEntity, mood: MoodSnapshot, time: number) {
     const hoverScale = 1 + Math.sin(time * 0.005 + entity.worldX * 0.018) * 0.06;
-    const isMoonlight = this.stage.backdropKind === 'moonlight-mountain';
+    // Palette family is declared by the stage, not inferred from its backdrop:
+    // a third world must choose, not inherit Wounded Planet through an else.
+    const isMoonlight = this.stage.traits.paletteVariant === 'cool';
     const shellColor = isMoonlight ? 0xfffaee : 0xf0e7d7;
     const shellWarm = isMoonlight ? 0xf3e0a7 : 0xe2d3b3;
     const shellStroke = isMoonlight ? 0x726042 : 0x645d4f;
@@ -1079,7 +1081,7 @@ export class RunnerLoopSystem {
   }
 
   private paintPlatform(entity: RunnerEntity, mood: MoodSnapshot, time: number) {
-    const isMoonlight = this.stage.backdropKind === 'moonlight-mountain';
+    const isMoonlight = this.stage.traits.paletteVariant === 'cool';
     const shimmer = Math.sin(time * 0.0024 + entity.worldX * 0.009) * 0.04;
     const applyPaint = (
       shape: PaintableShape | undefined,

@@ -5,6 +5,8 @@ import { runnerConfig } from '@/game/content/runnerConfig';
 import type { JourneyBackdropKind } from '@/game/content/journeyStages';
 import { EmotionController, type MoodSnapshot } from '@/game/systems/emotion/EmotionController';
 
+import type { BackdropFrameTargets, StageBackdrop } from './StageBackdrop';
+
 /**
  * Owns the painted parallax backdrop for a journey stage: the Graphics layer,
  * the smoothed follow state, the redraw throttle, and the per-stage painters.
@@ -13,17 +15,9 @@ import { EmotionController, type MoodSnapshot } from '@/game/systems/emotion/Emo
  * keep mobile GPU cost stable.
  */
 
-export interface BackdropFrameTargets {
-  distanceTravelled: number;
-  surfaceProgress: number;
-  finishRevealProgress: number;
-  environmentLevel: number;
-  collectFeedback: number;
-  chainFeedback: number;
-  awakeningFeedback: number;
-}
+export type { BackdropFrameTargets } from './StageBackdrop';
 
-export class BackdropRenderer {
+export class BackdropRenderer implements StageBackdrop {
   private readonly graphics: Phaser.GameObjects.Graphics;
   private readonly emotionController = new EmotionController();
   private readonly conduitHeights = [124, 156, 108, 168, 116, 144];
@@ -94,6 +88,11 @@ export class BackdropRenderer {
     this.lastRenderSurface = this.surfaceProgress;
     this.lastRenderFinish = this.finishRevealProgress;
     this.lastRenderLevel = this.environmentLevel;
+  }
+
+  /** Graphics is scene-owned, but the interface asks every backdrop to clean up. */
+  destroy() {
+    this.graphics.destroy();
   }
 
   private shouldRender() {

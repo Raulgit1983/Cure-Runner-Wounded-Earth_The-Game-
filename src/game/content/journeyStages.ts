@@ -1,4 +1,5 @@
 import moonlightMountainFinalUrl from '@/assets/entry/moonlight-mountain-ok.jpg';
+import blackForestBgMainUrl from '@/assets/worlds/black-forest/runtime/black-forest-bg-main.webp';
 import planetHomeCutoutUrl from '@/assets/planet/planet-home-cutout.webp';
 import { runnerConfig } from '@/game/content/runnerConfig';
 import {
@@ -9,8 +10,37 @@ import {
   type RunnerPhraseMap
 } from '@/game/content/runnerPhrases';
 
-export type JourneyStageKey = 'wounded-planet' | 'moonlight-mountain';
-export type JourneyBackdropKind = 'wounded-planet' | 'moonlight-mountain';
+export type JourneyStageKey = 'wounded-planet' | 'moonlight-mountain' | 'black-forest';
+export type JourneyBackdropKind = 'wounded-planet' | 'moonlight-mountain' | 'black-forest';
+
+/**
+ * Explicit per-stage choices that used to be `backdropKind === 'moonlight-mountain'`
+ * checks scattered across the runner, the overlays and the scene.
+ *
+ * They are fields rather than booleans on purpose: with a binary, a third stage
+ * silently inherits the Wounded Planet branch through the implicit `else`. A
+ * stage must now state what it wants.
+ */
+export interface JourneyStageTraits {
+  /**
+   * Palette family for collectibles and platforms. `cool` is Moonlight's
+   * ice/pearl set, `warm` is Wounded Planet's cream/moss set.
+   */
+  paletteVariant: 'warm' | 'cool';
+  /**
+   * How the first Tiburoncín window opens. `phrase` waits for a dedicated
+   * `onboarding_shark` phrase; `progress` opens it partway through onboarding
+   * for stages that have no such phrase.
+   */
+  sharkIntro: 'phrase' | 'progress';
+  /**
+   * Whether a failed run gets one extra chance (Moonlight's "Queda una
+   * oportunidad"). Off elsewhere — turning it on is a difficulty decision.
+   */
+  offersSecondChance: boolean;
+  /** Which finish ingredient this stage hands over. */
+  ingredient: 'nota-sol' | 'moonlight-shard' | 'pending-neutral';
+}
 
 export interface JourneyLevelProfile {
   endDistance: number;
@@ -58,6 +88,7 @@ export interface JourneyStageDefinition {
   label: string;
   backdropKind: JourneyBackdropKind;
   nextStage: JourneyStageKey | null;
+  traits: JourneyStageTraits;
   entry: JourneyEntryScreen;
   introGuidance?: string;
   beatGuidance?: string;
@@ -307,12 +338,200 @@ const moonlightPhrases: RunnerPhraseMap = {
   }
 };
 
+// Black Forest reuses the SAME verified vocabulary as Moonlight — no new verb,
+// no new hazard, no new mechanic (that decision is Raúl's, and is still open):
+//   - shard (y:18)  => JUMP OVER, grounded
+//   - mirror (y:172) / crown (y:198) => RUN UNDER, overhead
+//   - ledge => platform route
+// The stage's own character comes from its backdrop and cadence, not from new
+// rules. Spacing (>=130px between hazards), grounded reward notes (y<=112) and
+// "no overhead hazard right after a ledge" all follow the fairness doc, and
+// `phraseFairness.test.ts` enforces them against this data automatically.
+const blackForestPhrases: RunnerPhraseMap = {
+  forest_intro: {
+    id: 'forest_intro',
+    label: 'Forest Intro',
+    family: 'onboarding',
+    spacingAfter: 486,
+    items: [
+      { kind: 'collectible', variant: 'spark', x: 88, y: 60 },
+      { kind: 'collectible', variant: 'note', x: 154, y: 98 },
+      { kind: 'collectible', variant: 'brush', x: 220, y: 112 },
+      { kind: 'hazard', variant: 'shard', x: 276, y: 18 },
+      { kind: 'collectible', variant: 'spark', x: 344, y: 108 },
+      { kind: 'collectible', variant: 'note', x: 408, y: 92 },
+      { kind: 'collectible', variant: 'brush', x: 466, y: 76 }
+    ]
+  },
+  forest_roots: {
+    id: 'forest_roots',
+    label: 'Forest Roots',
+    family: 'onboarding',
+    spacingAfter: 528,
+    items: [
+      { kind: 'collectible', variant: 'note', x: 100, y: 88 },
+      { kind: 'hazard', variant: 'shard', x: 172, y: 18 },
+      { kind: 'collectible', variant: 'spark', x: 244, y: 110 },
+      { kind: 'collectible', variant: 'note', x: 308, y: 94 },
+      { kind: 'hazard', variant: 'shard', x: 380, y: 18 },
+      { kind: 'collectible', variant: 'spark', x: 452, y: 110 },
+      { kind: 'collectible', variant: 'note', x: 508, y: 90 }
+    ]
+  },
+  forest_canopy: {
+    id: 'forest_canopy',
+    label: 'Forest Canopy',
+    family: 'onboarding',
+    spacingAfter: 520,
+    items: [
+      { kind: 'collectible', variant: 'spark', x: 92, y: 66 },
+      { kind: 'hazard', variant: 'mirror', x: 190, y: 172 },
+      { kind: 'collectible', variant: 'note', x: 262, y: 96 },
+      { kind: 'collectible', variant: 'brush', x: 330, y: 104 },
+      { kind: 'hazard', variant: 'crown', x: 420, y: 198 },
+      { kind: 'collectible', variant: 'spark', x: 492, y: 100 }
+    ]
+  },
+  forest_climb: {
+    id: 'forest_climb',
+    label: 'Forest Climb',
+    family: 'onboarding',
+    spacingAfter: 604,
+    // PLATFORM ROUTE, same proven geometry as the moonlight ledge phrases:
+    // jump the shard, double-jump the ledge, collect the high line, drop.
+    // No overhead hazard after the ledge — the drop arc would clip it.
+    items: [
+      { kind: 'collectible', variant: 'spark', x: 90, y: 56 },
+      { kind: 'hazard', variant: 'shard', x: 152, y: 18 },
+      { kind: 'collectible', variant: 'note', x: 222, y: 96 },
+      { kind: 'collectible', variant: 'brush', x: 272, y: 110 },
+      { kind: 'platform', variant: 'ledge', x: 396, y: 180, width: 188 },
+      { kind: 'collectible', variant: 'spark', x: 352, y: 176 },
+      { kind: 'collectible', variant: 'note', x: 404, y: 210 },
+      { kind: 'collectible', variant: 'brush', x: 452, y: 188 },
+      { kind: 'collectible', variant: 'note', x: 522, y: 120 },
+      { kind: 'collectible', variant: 'spark', x: 568, y: 96 }
+    ]
+  },
+  forest_pine_step: {
+    id: 'forest_pine_step',
+    label: 'Forest Pine Step',
+    family: 'tension',
+    spacingAfter: 560,
+    items: [
+      { kind: 'collectible', variant: 'note', x: 84, y: 92 },
+      { kind: 'hazard', variant: 'shard', x: 156, y: 18 },
+      { kind: 'collectible', variant: 'spark', x: 228, y: 108 },
+      { kind: 'hazard', variant: 'shard', x: 300, y: 18 },
+      { kind: 'collectible', variant: 'note', x: 372, y: 104 },
+      { kind: 'hazard', variant: 'shard', x: 444, y: 18 },
+      { kind: 'collectible', variant: 'brush', x: 512, y: 100 }
+    ]
+  },
+  forest_low_branch: {
+    id: 'forest_low_branch',
+    label: 'Forest Low Branch',
+    family: 'tension',
+    spacingAfter: 596,
+    items: [
+      { kind: 'collectible', variant: 'spark', x: 88, y: 70 },
+      { kind: 'hazard', variant: 'crown', x: 178, y: 198 },
+      { kind: 'collectible', variant: 'note', x: 254, y: 100 },
+      { kind: 'hazard', variant: 'shard', x: 332, y: 18 },
+      { kind: 'collectible', variant: 'spark', x: 404, y: 106 },
+      { kind: 'hazard', variant: 'mirror', x: 486, y: 172 },
+      { kind: 'collectible', variant: 'brush', x: 552, y: 96 }
+    ]
+  },
+  forest_watching: {
+    id: 'forest_watching',
+    label: 'Forest Watching',
+    family: 'tension',
+    spacingAfter: 592,
+    items: [
+      { kind: 'collectible', variant: 'note', x: 90, y: 88 },
+      { kind: 'hazard', variant: 'mirror', x: 176, y: 172 },
+      { kind: 'collectible', variant: 'spark', x: 250, y: 102 },
+      { kind: 'hazard', variant: 'shard', x: 328, y: 18 },
+      { kind: 'collectible', variant: 'note', x: 400, y: 110 },
+      { kind: 'hazard', variant: 'crown', x: 482, y: 198 },
+      { kind: 'collectible', variant: 'brush', x: 550, y: 94 }
+    ]
+  },
+  forest_hollow: {
+    id: 'forest_hollow',
+    label: 'Forest Hollow',
+    family: 'tension',
+    spacingAfter: 640,
+    // PLATFORM ROUTE again, deeper in: shard first, then the high line.
+    items: [
+      { kind: 'hazard', variant: 'shard', x: 132, y: 18 },
+      { kind: 'collectible', variant: 'spark', x: 178, y: 96 },
+      { kind: 'collectible', variant: 'note', x: 226, y: 104 },
+      { kind: 'platform', variant: 'ledge', x: 392, y: 180, width: 190 },
+      { kind: 'collectible', variant: 'spark', x: 348, y: 176 },
+      { kind: 'collectible', variant: 'note', x: 400, y: 210 },
+      { kind: 'collectible', variant: 'brush', x: 452, y: 188 },
+      { kind: 'collectible', variant: 'note', x: 514, y: 130 },
+      { kind: 'collectible', variant: 'spark', x: 562, y: 100 }
+    ]
+  },
+  forest_deep_step: {
+    id: 'forest_deep_step',
+    label: 'Forest Deep Step',
+    family: 'tension',
+    spacingAfter: 600,
+    items: [
+      { kind: 'collectible', variant: 'note', x: 92, y: 90 },
+      { kind: 'hazard', variant: 'shard', x: 168, y: 18 },
+      { kind: 'collectible', variant: 'spark', x: 244, y: 108 },
+      { kind: 'hazard', variant: 'crown', x: 330, y: 198 },
+      { kind: 'collectible', variant: 'note', x: 404, y: 102 },
+      { kind: 'hazard', variant: 'shard', x: 486, y: 18 },
+      { kind: 'collectible', variant: 'brush', x: 556, y: 104 }
+    ]
+  },
+  forest_recovery_breath: {
+    id: 'forest_recovery_breath',
+    label: 'Forest Recovery Breath',
+    family: 'recovery',
+    spacingAfter: 452,
+    items: [
+      { kind: 'collectible', variant: 'spark', x: 90, y: 62 },
+      { kind: 'collectible', variant: 'note', x: 164, y: 96 },
+      { kind: 'collectible', variant: 'brush', x: 238, y: 118 },
+      { kind: 'collectible', variant: 'note', x: 312, y: 104 },
+      { kind: 'collectible', variant: 'spark', x: 386, y: 82 }
+    ]
+  },
+  forest_recovery_clearing: {
+    id: 'forest_recovery_clearing',
+    label: 'Forest Recovery Clearing',
+    family: 'recovery',
+    spacingAfter: 460,
+    items: [
+      { kind: 'collectible', variant: 'note', x: 88, y: 60 },
+      { kind: 'collectible', variant: 'spark', x: 160, y: 100 },
+      { kind: 'collectible', variant: 'brush', x: 234, y: 146 },
+      { kind: 'collectible', variant: 'note', x: 308, y: 164 },
+      { kind: 'collectible', variant: 'spark', x: 382, y: 128 },
+      { kind: 'collectible', variant: 'brush', x: 452, y: 90 }
+    ]
+  }
+};
+
 export const journeyStages: Record<JourneyStageKey, JourneyStageDefinition> = {
   'wounded-planet': {
     key: 'wounded-planet',
     label: 'Wounded Planet',
     backdropKind: 'wounded-planet',
     nextStage: 'moonlight-mountain',
+    traits: {
+      paletteVariant: 'warm',
+      sharkIntro: 'phrase',
+      offersSecondChance: false,
+      ingredient: 'nota-sol'
+    },
     entry: {
       eyebrow: 'Nivel 1',
       title: 'Wounded Planet',
@@ -357,7 +576,13 @@ export const journeyStages: Record<JourneyStageKey, JourneyStageDefinition> = {
     key: 'moonlight-mountain',
     label: 'Moonlight Mountain',
     backdropKind: 'moonlight-mountain',
-    nextStage: null,
+    nextStage: 'black-forest',
+    traits: {
+      paletteVariant: 'cool',
+      sharkIntro: 'progress',
+      offersSecondChance: true,
+      ingredient: 'moonlight-shard'
+    },
     entry: {
       eyebrow: 'Nivel 2',
       title: 'Moonlight Mountain',
@@ -404,6 +629,71 @@ export const journeyStages: Record<JourneyStageKey, JourneyStageDefinition> = {
         'moonlight_crescent'
       ],
       recoverySequence: ['moonlight_recovery_glint', 'moonlight_recovery_mirror'],
+      level: {
+        endDistance: 10160,
+        surfaceStartDistance: 1560,
+        finishRevealDistance: 8780,
+        finishSlowdownDistance: 300,
+        exitCoastDistance: 120
+      }
+    }
+  },
+  'black-forest': {
+    key: 'black-forest',
+    label: 'The Black Forest',
+    backdropKind: 'black-forest',
+    nextStage: null,
+    traits: {
+      // Explicit, not inherited. Warm collectibles read better than the cool
+      // moonlight set against graphite pencil on a dark ground.
+      paletteVariant: 'warm',
+      // No dedicated `onboarding_shark` phrase here, same as moonlight.
+      sharkIntro: 'progress',
+      // Deliberately NOT enabled: the moonlight second chance is a difficulty
+      // decision, and nobody has decided this stage should have one.
+      offersSecondChance: false,
+      // [PENDIENTE DE RAÚL] The real ingredient for this world is undecided.
+      ingredient: 'pending-neutral'
+    },
+    entry: {
+      eyebrow: 'Nivel 3',
+      title: 'The Black Forest',
+      framing: 'El bosque te está mirando.',
+      detail: 'Cruza entre los pinos y sigue las notas.',
+      cta: 'Entrar',
+      primaryColor: 0x86a98c,
+      accentColor: 0xd7e8c9,
+      art: {
+        textureKey: 'entry-art-black-forest',
+        imageUrl: blackForestBgMainUrl,
+        maxWidth: 286,
+        maxHeight: 200,
+        y: 282
+      },
+      loading: {
+        eyebrow: 'The Black Forest',
+        title: 'Abriendo el tercer mundo...',
+        copy: 'Los pinos ya están despiertos.'
+      }
+    },
+    introGuidance: 'Algo respira aquí.',
+    beatGuidance: 'El bosque escucha.',
+    surfaceGuidance: 'Se abre un claro.',
+    runner: {
+      // Matches moonlight's reaction-time allowance; this stage is not meant to
+      // be harder than stage 2, only different to look at.
+      speedMultiplier: 0.92,
+      phrases: blackForestPhrases,
+      initialPhraseId: 'forest_intro',
+      onboardingSequence: ['forest_roots', 'forest_canopy', 'forest_climb'],
+      rotation: [
+        'forest_pine_step',
+        'forest_low_branch',
+        'forest_watching',
+        'forest_hollow',
+        'forest_deep_step'
+      ],
+      recoverySequence: ['forest_recovery_breath', 'forest_recovery_clearing'],
       level: {
         endDistance: 10160,
         surfaceStartDistance: 1560,

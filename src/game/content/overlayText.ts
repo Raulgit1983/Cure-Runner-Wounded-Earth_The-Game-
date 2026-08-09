@@ -4,6 +4,8 @@
  * finish copy lives here too so those overlay modules own no hardcoded text.
  */
 
+import type { JourneyStageKey } from '@/game/content/journeyStages';
+
 export const HOME_BUTTON_LABEL = 'Inicio';
 export const CONTINUE_BUTTON_LABEL = 'Continuar';
 export const REPLAY_BUTTON_LABEL = 'Repetir';
@@ -14,21 +16,55 @@ export const PAUSE_TITLE = 'Pausa.';
 export const PAUSE_BODY = 'Puedes seguir cuando quieras.';
 export const PAUSE_CLOSING = 'La ruta espera.';
 
-export const FAIL_TITLE = 'Aún hay luz.';
-export const FAIL_BODY = 'El camino no se cierra.';
-export const FAIL_CLOSING = 'Toca para volver.';
-export const MOONLIGHT_FAIL_TITLE = 'Aún hay reflejo.';
-export const MOONLIGHT_FAIL_BODY = 'La luna sigue ahí.';
-export const MOONLIGHT_FAIL_CLOSING = 'Toca para volver.';
+/**
+ * Per-stage overlay copy, keyed by stage instead of the old
+ * `isMoonlight ? ... : ...` pair. A new stage has to supply its own lines; it
+ * cannot silently inherit Wounded Planet's through an implicit `else`.
+ */
+export interface StageOverlayCopy {
+  failTitle: string;
+  failBody: string;
+  failClosing: string;
+  finishTitle: string;
+  finishLabel: string;
+}
 
-export const FINISH_TITLE = 'Nota despertada';
-export const FINISH_LABEL = 'Algo cambió.';
-export const FINISH_BODY = 'Algo ha despertado.';
-export const FINISH_CLOSING = 'La luz abre camino.';
-export const MOONLIGHT_FINISH_TITLE = 'Reflejo despierto';
-export const MOONLIGHT_FINISH_LABEL = 'Hasta aquí, por ahora.';
-export const MOONLIGHT_FINISH_BODY = 'No hay más niveles todavía.';
-export const MOONLIGHT_FINISH_CLOSING = 'Puedes repetir o volver.';
+export const STAGE_OVERLAY_COPY: Record<JourneyStageKey, StageOverlayCopy> = {
+  'wounded-planet': {
+    failTitle: 'Aún hay luz.',
+    failBody: 'El camino no se cierra.',
+    failClosing: 'Toca para volver.',
+    finishTitle: 'Nota despertada',
+    finishLabel: 'Algo cambió.'
+  },
+  'moonlight-mountain': {
+    failTitle: 'Aún hay reflejo.',
+    failBody: 'La luna sigue ahí.',
+    failClosing: 'Toca para volver.',
+    finishTitle: 'Reflejo despierto',
+    // Was 'Hasta aquí, por ahora.' — that was end-of-game copy riding on the
+    // moonlight flag. Moonlight now continues into Black Forest, so the
+    // end-of-game lines moved to FINISH_FINAL_* below, keyed on `nextStage`.
+    finishLabel: 'El reflejo respondió.'
+  },
+  'black-forest': {
+    failTitle: 'El bosque sigue ahí.',
+    failBody: 'Puedes volver a entrar.',
+    failClosing: 'Toca para volver.',
+    // [PENDIENTE DE RAÚL] Neutral, factual placeholder. The ingredient, the
+    // Chomper boss and the real closing message for this world are not
+    // designed yet, and none of them are invented here.
+    finishTitle: 'Bosque cruzado',
+    finishLabel: 'Llegaste al final.'
+  }
+};
+
+/** Shown when another stage follows. */
+export const FINISH_CONTINUING_BODY = 'Algo ha despertado.';
+export const FINISH_CONTINUING_CLOSING = 'La luz abre camino.';
+/** Shown on the last stage — driven by `stage.nextStage`, not by which stage it is. */
+export const FINISH_FINAL_BODY = 'No hay más niveles todavía.';
+export const FINISH_FINAL_CLOSING = 'Puedes repetir o volver.';
 
 export const CONTINUE_TITLE = 'Respira.';
 export const CONTINUE_BODY = 'Cada paso despierta algo.';

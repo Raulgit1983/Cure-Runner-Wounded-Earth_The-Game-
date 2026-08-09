@@ -6,17 +6,14 @@ import {
   CONTINUE_BODY,
   CONTINUE_CLOSING,
   CONTINUE_TITLE,
-  FINISH_BODY,
-  FINISH_CLOSING,
   FINISH_CONTINUE_BUTTON_LABEL,
-  FINISH_LABEL,
-  FINISH_TITLE,
+  FINISH_CONTINUING_BODY,
+  FINISH_CONTINUING_CLOSING,
+  FINISH_FINAL_BODY,
+  FINISH_FINAL_CLOSING,
   HOME_BUTTON_LABEL,
-  MOONLIGHT_FINISH_BODY,
-  MOONLIGHT_FINISH_CLOSING,
-  MOONLIGHT_FINISH_LABEL,
-  MOONLIGHT_FINISH_TITLE,
-  REPLAY_BUTTON_LABEL
+  REPLAY_BUTTON_LABEL,
+  STAGE_OVERLAY_COPY
 } from '@/game/content/overlayText';
 import { audioCueBus } from '@/game/services/audio/audioCueBus';
 import type { RunnerLoopSnapshot } from '@/game/systems/runner/RunnerLoopSystem';
@@ -147,7 +144,8 @@ export class FinishFlow {
   ) {
     const width = journeyConfig.logicalSize.width;
 
-    this.isMoonlight = stage.backdropKind === 'moonlight-mountain';
+    // Cool/warm finish tint follows the stage's declared palette family.
+    this.isMoonlight = stage.traits.paletteVariant === 'cool';
     this.scrim = scene.add
       .rectangle(width * 0.5, journeyConfig.logicalSize.height * 0.5, width, journeyConfig.logicalSize.height, 0x0a0d12, 0)
       .setDepth(5.8);
@@ -453,9 +451,14 @@ export class FinishFlow {
     panel.lineStyle(2, 0x9ee9b6, 0.06);
     panel.lineBetween(-68, -6, 68, -6);
 
-    const isMl = this.isMoonlight;
+    const copy = STAGE_OVERLAY_COPY[this.stage.key];
+    // Body and closing depend on whether ANOTHER stage follows, not on which
+    // stage this is. They used to ride on the moonlight flag, which silently
+    // told the player "no hay más niveles" the moment moonlight gained a
+    // successor.
+    const isFinalStage = !this.stage.nextStage;
     const title = this.scene.add
-      .text(0, -48, isMl ? MOONLIGHT_FINISH_TITLE : FINISH_TITLE, {
+      .text(0, -48, copy.finishTitle, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '14px',
         color: '#fff8ef',
@@ -469,7 +472,7 @@ export class FinishFlow {
       .setResolution(2)
       .setShadow(0, 1, '#04070b', 2, false, true);
     const label = this.scene.add
-      .text(0, -20, isMl ? MOONLIGHT_FINISH_LABEL : FINISH_LABEL, {
+      .text(0, -20, copy.finishLabel, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '20px',
         color: '#e9ffaf',
@@ -481,7 +484,7 @@ export class FinishFlow {
       .setResolution(2)
       .setShadow(0, 1, '#03060a', 3, false, true);
     const body = this.scene.add
-      .text(0, 16, isMl ? MOONLIGHT_FINISH_BODY : FINISH_BODY, {
+      .text(0, 16, isFinalStage ? FINISH_FINAL_BODY : FINISH_CONTINUING_BODY, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '13px',
         color: '#fff7ec',
@@ -495,7 +498,7 @@ export class FinishFlow {
       .setResolution(2)
       .setShadow(0, 1, '#04070b', 2, false, true);
     const closing = this.scene.add
-      .text(0, 44, isMl ? MOONLIGHT_FINISH_CLOSING : FINISH_CLOSING, {
+      .text(0, 44, isFinalStage ? FINISH_FINAL_CLOSING : FINISH_CONTINUING_CLOSING, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '12px',
         color: '#cfe8d9',
@@ -631,10 +634,46 @@ export class FinishFlow {
       .setScale(0.9);
   }
 
+  /**
+   * Which ingredient this stage hands over is declared by the stage, so a new
+   * world cannot silently inherit Wounded Planet's Nota Sol.
+   */
   private createIngredient(x: number, y: number) {
-    return this.isMoonlight
-      ? this.createMoonlightIngredient(x, y)
-      : this.createWoundedIngredient(x, y);
+    switch (this.stage.traits.ingredient) {
+      case 'moonlight-shard':
+        return this.createMoonlightIngredient(x, y);
+      case 'pending-neutral':
+        return this.createPendingIngredient(x, y);
+      default:
+        return this.createWoundedIngredient(x, y);
+    }
+  }
+
+  /**
+   * [PENDIENTE DE RAÚL] Deliberately NOT a designed ingredient.
+   *
+   * Black Forest's real ingredient (and its Chomper boss, and its closing
+   * message) have not been decided. Rather than reuse the Nota Sol and imply
+   * the design is finished, this is a neutral warm light: functional, readable,
+   * and obviously a placeholder to replace once that decision is made.
+   */
+  private createPendingIngredient(x: number, y: number) {
+    const halo = this.scene.add
+      .ellipse(0, 0, 104, 104, 0xdcecd2, 0.16)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    const haloCore = this.scene.add
+      .ellipse(0, 2, 70, 70, 0xf4fbec, 0.2)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    const shell = this.scene.add
+      .ellipse(0, 2, 54, 54, 0x111a15, 0.82)
+      .setStrokeStyle(2, 0xd7e8c9, 0.34);
+    const core = this.scene.add
+      .ellipse(0, 2, 22, 22, 0xf4fbec, 0.9)
+      .setBlendMode(Phaser.BlendModes.ADD);
+    const spark = this.scene.add
+      .ellipse(0, 2, 9, 9, 0xffffff, 0.95);
+
+    return this.scene.add.container(x, y, [halo, haloCore, shell, core, spark]);
   }
 
   private createWoundedIngredient(x: number, y: number) {
