@@ -35,6 +35,23 @@ Read this before touching the repo. Pair with [project-current-state.md](project
 3. **Do not size or foot a sprite from `texture.height`.** Animation pack v2 pads its canvas; Carlitos' does not. Read `CharacterArtMetrics` (measured alpha bounds) instead. Getting this wrong is what made the Devilz float 18-26 px above the floor.
 4. **`FinishFlow`'s per-frame contract** is still the sharpest edge: `advance` → `decayPulse` → `update`, the last strictly before the hero block. Do not reorder without a browser smoke test of the finish sequence.
 5. Adding a stage means adding a `JourneyStageTraits` entry, a `STAGE_OVERLAY_COPY` entry and a `stageRules` entry in `phraseFairness.test.ts`. TypeScript will tell you; the fairness test will check your data.
+6. **Never regenerate `package-lock.json` casually — it cost three failed
+   deploys on 2026-08-09.** The Pages workflow runs `npm ci` on Node 20, so:
+   - Generate it with **npm 10** (`npx npm@10 install --package-lock-only`).
+   This machine's npm 11 resolves vitest's optional peer chain
+   (vite 8 -> rolldown) differently and omits `vitest/node_modules/esbuild`,
+   which npm 10 on the runner then rejects as missing.
+   - Generate it in a **pristine directory containing only `package.json`**.
+   Run it inside this repo with `node_modules` present and npm prunes the
+   optional platform binaries to your machine — 1 rollup binary instead of 25 —
+   so `npm ci` passes on the runner and the BUILD dies on a missing
+   `@rollup/rollup-linux-x64-gnu`.
+   - Verify both ways before pushing:
+   `npx npm@10 ci --dry-run --os=linux --cpu=x64` and `--os=darwin --cpu=arm64`.
+   Expect 152 packages and no missing/invalid entries on both.
+   - The push token has **no `workflow` scope**, so `.github/workflows/*`
+   cannot be changed from a Claude session. Fix things in the lockfile, or ask
+   Raúl to run `gh auth refresh -s workflow`.
 
 ## Backdrop treatment (added 2026-08-09, do not "fix" back)
 - The readability layer is a **vertical grade, not a flat veil**: weakest at the
