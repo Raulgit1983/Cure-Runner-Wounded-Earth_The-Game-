@@ -1,0 +1,74 @@
+{
+  "version": 2,
+  "status": "art-only-not-integrated",
+  "canvas": {
+    "width": 512,
+    "height": 512,
+    "alpha": true,
+    "renderOrigin": {
+      "x": 0.5,
+      "y": 0.58
+    }
+  },
+  "playback": {
+    "idle": {
+      "frames": ["main"],
+      "note": "Keep the existing procedural breathing motion."
+    },
+    "run": {
+      "frames": ["run-contact", "run-pass", "run-push", "run-pass"],
+      "frameRate": 10,
+      "repeat": -1
+    },
+    "jump": {
+      "rise": "jump-rise",
+      "apex": "jump-apex",
+      "fall": "jump-fall"
+    },
+    "landing": {
+      "frames": ["landing-compress", "main"],
+      "suggestedDurationMs": 90
+    },
+    "hit": {
+      "frames": ["hit-stagger"],
+      "suggestedDurationMs": 150
+    },
+    "finish": {
+      "frames": ["finish-awakened"],
+      "repeat": 0
+    }
+  },
+  "characters": {
+    "devi": {
+      "displayName": "Devi",
+      "identity": "Impulso y valor",
+      "proposedTrait": "Grito de valor: convierte el siguiente peligro en una breve onda de luz.",
+      "directory": "devi",
+      "main": "devi-main.webp",
+      "poseSheet": "devi-pose-sheet.webp"
+    },
+    "lovu": {
+      "displayName": "Lovu",
+      "identity": "Escucha y precisión",
+      "proposedTrait": "Oído del mundo: hace visible el próximo pulso seguro del camino.",
+      "directory": "lovu",
+      "main": "lovu-main.webp",
+      "poseSheet": "lovu-pose-sheet.webp"
+    },
+    "divu": {
+      "displayName": "Divu",
+      "identity": "Alegría y rebote",
+      "proposedTrait": "Rebote de luz: recupera un impulso aéreo al enlazar una nota en el aire.",
+      "directory": "divu",
+      "main": "divu-main.webp",
+      "poseSheet": "divu-pose-sheet.webp"
+    }
+  },
+  "supportPower": {
+    "id": "carlitos-heartbeat",
+    "displayName": "El Latido de Carlitos",
+    "design": "Carlitos leaves the playable roster and becomes the shared visual form of the existing reserve system.",
+    "reserveFill": "Show a small, warm Carlitos presence when the existing reserve becomes ready.",
+    "reserveSpent": "On the existing reserve_spent cue, briefly place Carlitos as a protective light around the selected Devilz. Do not add a new button, charge rule, collision or balance advantage."
+  }
+}
