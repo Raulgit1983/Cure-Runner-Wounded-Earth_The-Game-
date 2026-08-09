@@ -8,9 +8,10 @@ updated: 2026-08-09
 Read this before touching the repo. Pair with [project-current-state.md](project-current-state.md).
 
 ## Status assumptions
-- Repo compiles: `npm run check`, `npm run build` and `npm test` (**93 tests**) are green as of 2026-08-09.
+- Repo compiles: `npm run check`, `npm run build` and `npm test` (**114 tests**) are green as of 2026-08-09.
+- **Uncommitted local work on top of `03382fc`:** the Black Forest eye + yawn integration (approved art pass, six runtime assets, `blackForestYawn.ts` + its tests, a generic hero-position field group on `BackdropFrameTargets`). Not committed, not pushed, by instruction.
 - Active work line: three playable stages, three playable characters. The last batch was the Devilz animation pack, the Tiburoncín flash fix and The Black Forest.
-- **Four commits are local only and have NOT been pushed** (`da731e0`, `c256b85`, `1eb0033`, `bf900b1`). Do not push without Raúl saying so.
+- **Five commits are local only and have NOT been pushed**: the four-commit functional batch (`da731e0`, `c256b85`, `1eb0033`, `bf900b1`) plus the documentation commit `03382fc`, which is `HEAD`. Do not push without Raúl saying so.
 - `dist/` is gitignored; do not commit build output.
 
 ## Architecture facts (do not re-derive)
@@ -31,7 +32,7 @@ Read this before touching the repo. Pair with [project-current-state.md](project
 ## Highest-priority next slices
 1. **Real-phone pass.** Everything so far was verified in headless Chromium at an iPhone-13 viewport. Three stages, three characters and an image backdrop have never run on real hardware. This is the biggest open risk.
 2. **Black Forest creative decisions (Raúl's).** Ingredient, closing message and the Chomper boss all ship as explicit `[PENDIENTE DE RAÚL]` placeholders.
-3. **Eye / mouth re-export decision (Raúl's).** The forest's "Follows The Player" eye and "Yawns Randomly" mouth are not wired; the cut-outs need their scanner paper thresholded out and registering against `bg-main`. See the class doc in `BlackForestBackdropRenderer`.
+3. ~~Eye / mouth re-export decision~~ — **done 2026-08-09, local only.** Both behaviours are wired off an approved art pass. Do not "fix" them back: the eye must rest at offset (0,0) and stay inside ±7/±3.5 source px, and the mouth's rest phase is closed. See `BlackForestBackdropRenderer`'s class doc.
 4. Expand `LevelDefinition` so it actually drives tuning, phrase pools and mechanic flags.
 
 ## Validation commands (run before closing any slice)

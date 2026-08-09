@@ -17,9 +17,12 @@ Stage chain: `wounded-planet → moonlight-mountain → black-forest → end`
 
 ### What is actually playable
 - Entry screen as "Nivel 3 — The Black Forest", lazily loading its own art.
-- Image backdrop from Mateo's `BG 2` sheet: `bg-main` as a slow-drifting
-  mid-plane, `bg-layer-front` as a foreground pine band, both drawn through
-  `setTintFill` so the alpha matte reads light-on-dark with every stroke intact.
+- Image backdrop from Mateo's `BG 2` sheet: **`bg-plate`** as a slow-drifting
+  mid-plane, carrying the moving eye and mouth as children (see item 4 below),
+  and `bg-layer-front` as a foreground pine band. Both are drawn through
+  `setTintFill`, so the alpha matte reads light-on-dark with every stroke it
+  carries intact. `bg-main` — the same sheet uncut, eye and mouth still baked
+  in — is no longer the mid-plane; it is the level-entry illustration only.
 - Full run loop: run, jump, double jump, landing, hit, i-frames, reserve,
   pause, retry, finish panel (final-stage variant: Repetir + Inicio).
 - Phrase data reusing ONLY verified verbs (grounded shard = jump, overhead
@@ -33,22 +36,49 @@ Stage chain: `wounded-planet → moonlight-mountain → black-forest → end`
    ("Bosque cruzado" / "Llegaste al final."), not a designed ending.
 3. **Chomper boss.** Drawn (`Imagenes/Chomper.jpg`) but not designed in. The
    handoff notes the trunk mouth and Chomper's heads are the same drawing.
-4. **The eye and the mouth are NOT animated.** Mateo annotated "Follows The
-   Player" and "Yawns Randomly", and both were implemented and then removed
-   after testing on a phone viewport. Two reasons, both in the assets:
-   - the cut-outs carry their own scanner paper wash (~77% of `world-02-eye.webp`
-     is partial-alpha paper, not ink), so drawn over `bg-main` they double up
-     and read as a hard rectangular block;
-   - they were extracted at a higher resolution and are not registered to the
-     flattened sheet, and the offset is not derivable from the files.
-   The baked eye and mouth remain visible in `bg-main`, so the forest still
-   watches — it just does not blink yet. **The fix is an asset step, not a code
-   step:** re-export the four cut-outs with the paper thresholded out and record
-   their offset/scale against `bg-main` once. That means processing Mateo's
-   files, so it needs Raúl's go-ahead first.
-5. **A faint rectangular seam** is visible in the upper-left of `bg-main` — a
-   masked annotation region from the original scan, present in the source asset.
-   Not introduced by code. Fixing it is a re-export, same call as above.
+4. ~~**The eye and the mouth are NOT animated.**~~ — **RESOLVED (2026-08-09,
+   local only, not committed).** Both of Mateo's annotated behaviours are wired.
+   Historical diagnosis kept below because it explains the constraints the
+   integration still has to respect.
+
+   *(historical)* Both were implemented once and removed after testing on a
+   phone viewport. Two reasons, both in the assets:
+   - the cut-outs carried their own scanner paper wash (~77% of
+     `world-02-eye.webp` is partial-alpha paper, not ink), so drawn over
+     `bg-main` they doubled up and read as a hard rectangular block;
+   - they were extracted at a higher resolution and were not registered to the
+     flattened sheet, and the offset was not derivable from the files.
+
+   The fix was an asset step, and Raúl authorised it. `bg-main` was split into
+   a **plate** with the eye and mouth lifted out, a **re-cut eye**, and **three
+   mouth phases** on one shared 165x183 canvas and anchor. Gameplay now draws
+   `black-forest-bg-plate.webp`; `black-forest-bg-main.webp` stays the complete
+   level-entry illustration, so the entry screen still shows the baked eye and
+   open mouth and has no holes.
+
+   Constraints that came with it, and must not be quietly dropped:
+   - **Rest is exactly the authored registration**, eye offset (0,0) — the only
+     place the sprite recomposes the plate with alpha RMSE 0. A conserved,
+     deliberately unfilled gap in the right eyelid at the eye/canopy junction
+     is visible only while the eye is away from rest.
+   - Eye travel is capped at **±7 px horizontal / ±3.5 px vertical in source
+     coordinates**; that is the margin the art pass reserved, not a taste
+     setting. Past it, Mateo's line clips.
+   - Rest phase of the mouth is **closed** (Raúl's decision). The three phases
+     are swapped as textures and never scaled or deformed; the trunk lives in
+     the plate and never moves.
+   - Yawn timings (5-9 s gap, 0.26/0.72/0.34 s phases) are technical tuning,
+     not canonical text from the drawing.
+5. ~~**A faint rectangular seam** is visible in the upper-left of `bg-main`~~ —
+   **RESOLVED (2026-08-09, local only).** It was a masked annotation region from
+   the original scan, present in the source asset and never introduced by code.
+   The approved washed-floor treatment (`alpha = level(6%,92%)`), which shipped
+   as part of the same art pass, pushes that faint paper wash to zero while
+   leaving the ink. Measured on the upper-left quadrant of the runtime file
+   against the untouched `Imagenes/files/world-02-bg-main.webp`: pixels above 1%
+   alpha fell from 112,881 to 24,558 and mean alpha from 0.0470 to 0.0286, while
+   the standard deviation held (0.1106 → 0.1132) — the wash went, the drawing
+   stayed.
 
 ## Superseded gate (2026-06-21) — kept for history
 **Do not start Level 3 until the current flow + moonlight (stage 2) fairness are stable and verified on a real phone.** Two playable stages exist (`wounded-planet`, `moonlight-mountain`); the active work is entry-flow correctness, mobile responsiveness, and stage-2 fairness — not new content.

@@ -8,7 +8,9 @@ updated: 2026-08-09
 Compact, high-signal snapshot. Source of truth for agents. Update when a slice lands.
 
 ## Latest batch (Fact — 2026-08-09, `da731e0..` on `visual/world-01-carlitos-drive`, local only, NOT pushed)
-Four commits. All of `npm run check` / `npm run build` / `npm test` (**93 tests**) green at each one.
+**The branch is five commits ahead of the remote and none of them are pushed:** the four-commit functional batch below, plus the documentation commit `03382fc`, which is `HEAD`.
+
+The functional batch is four commits. All of `npm run check` / `npm run build` / `npm test` (**93 tests at the time**; 114 now, after the eye/yawn slice) green at each one.
 
 1. **`da731e0` `feat(assets): add Devilz animation pack v2`** — 46 files. Ten poses per character as 512x512 RGBA WebP, plus pose sheets and `previews/` (QA only, never loaded). The v1 `src/assets/devilz/*.webp` line art is untouched on disk.
 2. **`c256b85` `feat(character): animate Devilz and refine mobile selection`** — see the playable-characters section below.
@@ -40,6 +42,19 @@ Four commits. All of `npm run check` / `npm run build` / `npm test` (**93 tests*
 - **Every `backdropKind === 'moonlight-mountain'` binary is gone**, replaced by explicit `JourneyStageTraits` (`paletteVariant`, `sharkIntro`, `offersSecondChance`, `ingredient`). A fourth world must now state what it wants instead of inheriting Wounded Planet through an implicit `else`.
 - Overlay copy is keyed per stage, and finish body/closing follow `nextStage`. This fixed a latent bug: moonlight's finish text said "no hay más niveles todavía", which became false the moment it gained a successor.
 - Phrase data reuses **only verified verbs** (grounded shard = jump, overhead mirror/crown = duck, ledge = platform). `phraseFairness.test.ts` covers the stage at moonlight's stricter floors and **caught two real spacing defects during authoring**.
+
+### The eye and the mouth (2026-08-09, local only — NOT committed, NOT pushed)
+Mateo's two annotations on the sheet, "Follows The Player" and "Yawns Randomly", are wired. This supersedes the earlier note that they were deliberately left inert; the blocker was the assets, and an approved art pass cleared it.
+
+- **Asset split.** `bg-main` became a **plate** (eye and mouth lifted out) plus a **re-cut eye** (177x91) and **three mouth phases** (165x183, one shared canvas and anchor). Verified by the art pass to recompose the original at alpha RMSE 0. Runtime draws `black-forest-bg-plate.webp`; **`black-forest-bg-main.webp` is now the level-entry illustration only** and keeps the eye and mouth baked in, which is what stops the entry screen showing holes. It was also replaced with the approved washed-floor treatment. The `Imagenes/files/` originals are untouched.
+- **One container.** Plate, eye and mouth are children of the same `midPlane`, with the same scale, `setTintFill`, alpha, drift and parallax. Nothing can separate from the drawing. Container children are drawn in list order, so the order is plate → eye → mouth.
+- **Eye.** Offset = the player's displacement from where the same player is drawn while simply running, eased with `1 - exp(-dt * k)`, clamped to **±7 px horizontal / ±3.5 px vertical in source coordinates** — the margin the art pass reserved, not a taste setting. Rest is exactly (0,0), because that is the only registration where the sprite recomposes the plate perfectly and because a conserved unfilled gap in the right eyelid shows only when the eye is off-rest. Reduced motion pins it neutral.
+- **Mouth.** Texture swap only, never a procedural scale. Rest phase **closed** (Raúl's decision). Cycle closed → mid → open → mid → closed, with a random 5-9 s gap between yawns.
+- **New generic contract.** `BackdropFrameTargets` gained `heroX/heroY/heroRestX/heroRestY`. `JourneyScene` fills them for every stage with **no stage branch**; `BackdropRenderer` ignores them. The rest pair is passed rather than assumed because a grounded character's rendered anchor is **not** `runnerConfig.hero.runY` — each character's footing correction moves it (Devi rests at y=516.24, measured).
+- **[YawnClock](../../src/game/systems/backdrop/blackForestYawn.ts) is Phaser-free and unit-tested (21 tests, of a 114-test suite).** Injectable RNG; the default is a self-contained mulberry32 seeded from the clock, deliberately **not** `Math.random()`, so a decorative mouth cannot shift the global random stream that Tiburoncín's cooldowns draw from. A huge delta (backgrounded tab) is caught by a transition guard that settles the mouth closed instead of replaying hundreds of invisible yawns.
+- **Pause vs reduced motion are different on purpose.** Pause is a hard freeze — `JourneyScene.update()` early-returns before the backdrop, so the yawn resumes on the exact phase and remainder it stopped at (measured: identical to 9 decimal places across a 5 s pause, frozen mid-yawn). Reduced motion instead holds the mouth closed and cancels a yawn in flight.
+- **`vite.config.ts` now opts `src/assets/worlds/black-forest/runtime/` out of asset inlining** (`build.assetsInlineLimit` as a callback: `false` for that directory, `undefined` everywhere else). The re-cut eye (3.5 kB) and closed mouth (2.8 kB) sit under Vite's 4 kB default and were being emitted as base64 inside the JourneyScene chunk, shipping to players who never reach the third world. Do not "simplify" it back to a number, and do not pad the WebPs to clear the limit — that would mean altering Mateo's art to suit a bundler.
+- Physics untouched: `RunnerLoopSystem`, `runnerConfig` and `heroProfile` have an empty diff.
 
 ## What exists (Fact)
 - Stack: Phaser `3.80`, TypeScript `5.7` (strict), Vite `5.4`. Logical canvas `360x640`, `Scale.FIT`.
@@ -82,7 +97,7 @@ All of the below is now in `HEAD`. The PauseFlow batch was verified by isolating
   - **`catchRadiusPx` is NOT wired per character.** `devilzProfiles.ts` declares differing values (devi 56, lovu 48, divu 40), but nothing reads them — see the dead-config note below. All four characters share `runnerConfig.rewards.collectRadius` (40). Honouring the per-character values would be a difficulty change requiring `RunnerLoopSystem` surgery, and was explicitly ruled out.
 
 ## What is verified (Fact)
-- `tsc --noEmit` exits 0, `vite build` succeeds, `npm test` is **57/57 green at `HEAD`** (up from 48 — the DiscoveryFlow/FailFlow slice added 9 `discoverySessionCache` tests). The PauseFlow batch was confirmed both at the full tree and isolated per-commit; the DiscoveryFlow/FailFlow slice was confirmed at full-tree `HEAD` (not per-commit).
+- `tsc --noEmit` exits 0, `vite build` succeeds, `npm test` is **114/114 green on the current working tree** (48 → 57 when the DiscoveryFlow/FailFlow slice added 9 `discoverySessionCache` tests → 93 after the 2026-08-09 batch → 114 once the eye/yawn slice added 21 `blackForestYawn` tests). The PauseFlow batch was confirmed both at the full tree and isolated per-commit; the DiscoveryFlow/FailFlow slice was confirmed at full-tree `HEAD` (not per-commit).
 - The moonlight fairness data invariants (5 tests) only pass once `c509948` (the phrase redesign) is present — expected: they encode the redesigned data, not the pre-redesign phrases. No longer a caveat now that `c509948` is committed.
 - Browser smoke test (Chrome, pre-`dc933f5`, same bytes as committed): entry cover → CTA starts run → backdrop/hero/collectibles render, "Notas."/"Golpe." discovery beats fire once each and don't re-trigger, Repetir resets per-run guidance, moonlight backdrop (sky/moon/mountain/crystal layers, parallax) renders correctly through `BackdropRenderer`, pause hard-freeze works, zero console errors throughout.
 - Browser smoke test (Chrome, post-`f40c1fe`, this exact `HEAD`): PAUSA button opens the pause panel through `PauseFlow` with a hard freeze behind it, Ayuda swaps to the help panel and Volver swaps back, Continuar resumes and unfreezes, keyboard P opens / Escape closes, both keys correctly no-op while a discovery beat owns the screen, zero console errors.
@@ -110,12 +125,12 @@ All of the below is now in `HEAD`. The PauseFlow batch was verified by isolating
 ## Immediate next priorities (Next action — in order)
 1. **Real-phone pass. This is now the single largest untested risk.** Everything below was verified with headless Chromium at an iPhone-13 viewport with touch emulation — never on a physical device. Three stages, three characters, and a new image backdrop are all unvalidated on real hardware.
 2. **Decide the Black Forest creative gaps** — ingredient, closing message, Chomper boss. All three ship as explicit `[PENDIENTE DE RAÚL]` placeholders and must not be left as the answer. See [level-03-direction.md](level-03-direction.md).
-3. **Decide whether to re-export Mateo's `world-02` cut-outs** so the eye can track and the mouth can yawn. This needs Raúl's go-ahead because it means processing his art files.
+3. ~~Decide whether to re-export Mateo's `world-02` cut-outs~~ — **DONE (2026-08-09).** Raúl approved the art pass and the local integration; the eye tracks and the mouth yawns. See the Black Forest section above. Still uncommitted.
 4. Expand `LevelDefinition` (tuning overrides, phrase pools, mechanic flags) — still metadata-only.
 5. Then author further levels as data.
 
 ## Known risks (Risk)
-- [JourneyScene.ts](../../src/game/scenes/JourneyScene.ts) is ~1381 LOC (3255 → 2418 → 1841 → 1221 → 1381 after the character/shark/stage work). Pose resolution moved out to `CharacterAnimator`; what is left is the shark director, guidance moments, hit reaction, debug overlay and the window-event plumbing — decompose those only if a concrete need appears, one system per commit.
+- [JourneyScene.ts](../../src/game/scenes/JourneyScene.ts) is ~1413 LOC (3255 → 2418 → 1841 → 1221 → 1381 after the character/shark/stage work → 1413 after the eye/yawn slice). Pose resolution moved out to `CharacterAnimator`; what is left is the shark director, guidance moments, hit reaction, debug overlay and the window-event plumbing — decompose those only if a concrete need appears, one system per commit.
 - **`FinishFlow`'s per-frame contract is the sharpest remaining edge.** Three ordered calls per frame (`advance` → `decayPulse` → `update`, the last strictly before the hero block) encode behavior that a plain "tidy up `update()`" refactor would silently break, because `beginVictoryBeat()` fires inside `update()` and the hero block reads the result in the same frame. Do not reorder those calls without a browser smoke test of the finish sequence.
 - Runner entities are created per spawn with no pooling → GC churn on mobile (perf, not correctness).
 - Mobile FPS / input latency on real mid-range Android: **Needs verification** (no device pass on record). Level 3 was built on Raúl's decision without it, so this is now an outstanding risk across three stages rather than a gate.
@@ -124,13 +139,14 @@ All of the below is now in `HEAD`. The PauseFlow batch was verified by isolating
 ## Strict "do not assume" list
 - Do **not** assume anything in the 2026-08-09 batch was tested on a physical phone — none of it was. Headless Chromium at a phone viewport is not a device pass.
 - Do **not** assume The Black Forest is creatively finished — its ingredient, closing message and boss are explicit placeholders.
-- Do **not** assume the forest's eye or mouth animate — they are deliberately not wired; the reason is in `BlackForestBackdropRenderer`'s class doc.
+- Do **not** assume the forest's eye or mouth are still unwired — that was true until 2026-08-09 and is now stale. Both animate; the constraints they carry (neutral rest, ±7/±3.5 source-px cap, closed rest phase, texture swap never a deform) are in `BlackForestBackdropRenderer`'s class doc and in [level-03-direction.md](level-03-direction.md).
+- Do **not** assume gameplay draws `black-forest-bg-main.webp` — it draws `black-forest-bg-plate.webp`. `bg-main` is the level-entry illustration only, and it must keep the eye and mouth baked in or the entry screen gets holes.
 - Do **not** re-add a `backdropKind === '<stage>'` binary. Add a field to `JourneyStageTraits` instead, or a fourth world will silently inherit Wounded Planet.
 - Do **not** move the character's pose/animation work back into `Scene.update()` without re-checking the pause freeze: animations run on the animation manager, not on the scene update.
 - Do **not** assume Firebase works — it is a stub.
 - Do **not** assume levels 2-10 exist or that `LevelDefinition` is consumed in gameplay.
 - Do **not** assume all overlay modules exist — `BackdropRenderer`, `GuidanceDirector`, `PauseFlow` (pause/help), `DiscoveryFlow`, `FailFlow` and `FinishFlow` do. There is no `HelpFlow`.
-- Do **not** assume scene/runner-loop/overlay behavior is test-covered — only pure state/data is (57 Vitest tests). `PauseFlow`/`DiscoveryFlow`/`FailFlow`/`FinishFlow` are Phaser-coupled and verified by browser smoke test only; `discoverySessionCache` is the exception (Phaser-free, unit-tested).
+- Do **not** assume scene/runner-loop/overlay behavior is test-covered — only pure state/data is (114 Vitest tests). `PauseFlow`/`DiscoveryFlow`/`FailFlow`/`FinishFlow` are Phaser-coupled and verified by browser smoke test only; `discoverySessionCache` is the exception (Phaser-free, unit-tested).
 - Do **not** assume the FinishFlow slice is fully browser-verified — `wounded-planet`'s finish sequence has a real-phone pass, but `moonlight-mountain`'s finish, fail-before-finish, and pause→Repetir do not yet.
 - Do **not** assume the untracked image drafts are deleted — they are on disk, only untracked.
 - Do **not** assume the fairness/entry-flow pass has been verified on a real phone — it hasn't.

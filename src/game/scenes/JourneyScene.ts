@@ -1,7 +1,11 @@
 import Phaser from 'phaser';
 
 import blackForestBgLayerFrontUrl from '@/assets/worlds/black-forest/runtime/black-forest-bg-layer-front.webp';
-import blackForestBgMainUrl from '@/assets/worlds/black-forest/runtime/black-forest-bg-main.webp';
+import blackForestBgPlateUrl from '@/assets/worlds/black-forest/runtime/black-forest-bg-plate.webp';
+import blackForestEyeUrl from '@/assets/worlds/black-forest/runtime/black-forest-eye.webp';
+import blackForestMouthClosedUrl from '@/assets/worlds/black-forest/runtime/black-forest-mouth-closed.webp';
+import blackForestMouthMidUrl from '@/assets/worlds/black-forest/runtime/black-forest-mouth-mid.webp';
+import blackForestMouthOpenUrl from '@/assets/worlds/black-forest/runtime/black-forest-mouth-open.webp';
 
 import { journeyStages, type JourneyStageDefinition, type JourneyStageKey } from '@/game/content/journeyStages';
 import { journeyConfig } from '@/game/content/journeyConfig';
@@ -45,11 +49,20 @@ import { prefersReducedMotion } from '@/ui/reducedMotion';
  * URL map only — importing a URL costs nothing at runtime. Vite emits these as
  * separate files, so the bytes are fetched by JourneyScene.preload() when the
  * Black Forest stage starts and never during boot.
+ *
+ * The full `bg-main` illustration is deliberately not here: gameplay draws the
+ * plate (the same sheet with the eye and mouth lifted out so they can move),
+ * while `bg-main` stays the level-entry screen's art and is loaded there under
+ * its own texture key.
  */
-const blackForestAssetUrls = {
-  bgMain: blackForestBgMainUrl,
-  layerFront: blackForestBgLayerFrontUrl
-} as const;
+const blackForestAssetUrls: Record<keyof typeof BLACK_FOREST_TEXTURES, string> = {
+  bgPlate: blackForestBgPlateUrl,
+  layerFront: blackForestBgLayerFrontUrl,
+  eye: blackForestEyeUrl,
+  mouthClosed: blackForestMouthClosedUrl,
+  mouthMid: blackForestMouthMidUrl,
+  mouthOpen: blackForestMouthOpenUrl
+};
 
 const SHARK_TEXTURE_KEY = 'shark-friend';
 /**
@@ -136,6 +149,14 @@ export class JourneyScene extends Phaser.Scene {
    * drawing's visible feet with the support point the runner already uses.
    */
   private heroFootingOffsetY = 0;
+  /**
+   * Where this character's drawing sits while it is simply running along the
+   * ground: the hero block's own result with every transient term at zero. It
+   * is what a backdrop measures the player's movement against, and it is
+   * character-dependent (each art pack foots differently), so it cannot be a
+   * shared constant and must not be confused with `runnerConfig.hero.runY`.
+   */
+  private heroRestY: number = runnerConfig.hero.runY;
   private heroRenderScaleX = 1;
   private heroRenderScaleY = 1;
   private lastDebugEmit = 0;
@@ -271,6 +292,8 @@ export class JourneyScene extends Phaser.Scene {
       HERO_SUPPORT_OFFSET_PX -
       HERO_FOOTING_VISUAL_OFFSET_Y -
       getFootOffsetPx(this.character, CHARACTER_RENDER_ORIGIN.y);
+    this.heroRestY =
+      runnerConfig.hero.runY + HERO_FOOTING_VISUAL_OFFSET_Y + this.heroFootingOffsetY;
     this.heroRenderScaleX = this.baseHeroScale;
     this.heroRenderScaleY = this.baseHeroScale;
     this.hero.setScale(this.baseHeroScale);
@@ -456,7 +479,16 @@ export class JourneyScene extends Phaser.Scene {
       environmentLevel,
       collectFeedback: this.feedback.collect,
       chainFeedback: this.feedback.chain,
-      awakeningFeedback: this.feedback.awakening
+      awakeningFeedback: this.feedback.awakening,
+      // Supplied to every stage, read by whichever one cares — no stage branch
+      // here. This is the drawn position from the end of the previous frame,
+      // because the hero block below is what writes the current one, and moving
+      // this call after it would disturb the finish sequence's per-frame order.
+      // A frame of lag is immaterial to a backdrop that eases toward it.
+      heroX: this.hero.x,
+      heroY: this.hero.y,
+      heroRestX: runnerConfig.hero.screenX,
+      heroRestY: this.heroRestY
     });
 
     if (!this.failFlow.isResolved() && !this.finishFlow.isResolved() && !this.discoveryFlow.isActive()) {
