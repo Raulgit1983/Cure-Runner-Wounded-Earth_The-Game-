@@ -31,8 +31,19 @@ import {
 } from '@/game/systems/overlays/FinishFlow';
 import { PauseFlow } from '@/game/systems/overlays/PauseFlow';
 import { RunnerLoopSystem, type RunnerLoopSnapshot } from '@/game/systems/runner/RunnerLoopSystem';
+import { prefersReducedMotion } from '@/ui/reducedMotion';
 
 const SHARK_TEXTURE_KEY = 'shark-friend';
+/**
+ * Where the shark waits between fly-bys. Parking it off-screen on every hide
+ * means that even if something ever shows it out of turn, it cannot appear on
+ * top of the play area.
+ */
+const SHARK_PARK_X = -180;
+const SHARK_PARK_Y = 210;
+/** Readable fade-out after it has given its air, instead of vanishing. */
+const SHARK_EXIT_MS = 260;
+const SHARK_EXIT_REDUCED_MS = 120;
 const DEBUG_DECORATIVE_FAMILIES = ['backdrop', 'ground-markers', 'shark-friend'] as const;
 const MOONLIGHT_OPPORTUNITY_LINE = 'Queda una oportunidad.';
 const MOONLIGHT_OPPORTUNITY_PULSE = 0.46;
@@ -120,8 +131,18 @@ export class JourneyScene extends Phaser.Scene {
   private sharkDuration = 1.9;
   private sharkProgress = 0;
   private sharkBaseY = 210;
-  private sharkActive = false;
+  /**
+   * Explicit, tiny lifecycle for Tiburoncín:
+   *   hidden -> flying -> (contact) exiting -> hidden
+   *
+   * It exists because the old boolean pair let the container be made visible
+   * before it had been positioned, so the first visible frame rendered at
+   * whatever transform its previous fly-by left behind — a one-frame flash,
+   * usually right where the player was standing.
+   */
+  private sharkPhase: 'hidden' | 'flying' | 'exiting' = 'hidden';
   private sharkTagged = false;
+  private sharkExitTween?: Phaser.Tweens.Tween;
   // Grace to apply when the first shark-rescue discovery beat resolves, so it
   // starts after the run resumes rather than being spent while time is frozen.
   private pendingSharkGrace = 0;
@@ -161,8 +182,10 @@ export class JourneyScene extends Phaser.Scene {
     this.hitReactionStrength = 0;
     this.sharkBurst = 0;
     this.sharkCooldown = 3.8;
-    this.sharkActive = false;
+    this.sharkPhase = 'hidden';
     this.sharkTagged = false;
+    this.sharkExitTween = undefined;
+    this.sharkProgress = 0;
     this.pendingSharkGrace = 0;
     this.lastGuidanceAt = -9999;
     this.guidanceIndex = 0;
@@ -307,8 +330,9 @@ export class JourneyScene extends Phaser.Scene {
       returnToStart: () => this.returnToStart()
     });
     this.sharkShadow = this.add
-      .ellipse(-120, runnerConfig.visual.groundLineY - 44, 58, 12, 0x09080d, 0.1)
+      .ellipse(SHARK_PARK_X, runnerConfig.visual.groundLineY - 44, 58, 12, 0x09080d, 0.1)
       .setDepth(4.45)
+      .setAlpha(0)
       .setVisible(false);
     this.shark = this.createShark();
     this.debugGraphics = this.showDebug ? this.add.graphics().setDepth(6.8) : undefined;
@@ -650,6 +674,9 @@ export class JourneyScene extends Phaser.Scene {
     this.pauseFlow.destroy();
     this.discoveryFlow.hide();
     this.carlitosHeartbeat?.destroy();
+    // Kill the exit fade and park the shark so a restarted scene can never
+    // inherit an in-flight tween or an on-screen transform.
+    this.hideShark();
     this.emitVictoryState(false);
     this.emitFocusMode(false);
     this.offAudioCue?.();
@@ -706,7 +733,11 @@ export class JourneyScene extends Phaser.Scene {
       .setAlpha(0.94)
       .setTint(0xe5ece7);
 
-    return this.add.container(-120, 210, [glow, shark]).setDepth(4.9).setVisible(false);
+    return this.add
+      .container(SHARK_PARK_X, SHARK_PARK_Y, [glow, shark])
+      .setDepth(4.9)
+      .setAlpha(0.94)
+      .setVisible(false);
   }
 
   private emitLightMotes(
@@ -875,10 +906,10 @@ export class JourneyScene extends Phaser.Scene {
 
 
   private haltSharkEvent() {
-    this.sharkActive = false;
-    this.sharkTagged = false;
-    this.shark.setVisible(false);
-    this.sharkShadow.setVisible(false);
+    // Pause, fail, victory and restart all land here. It now clears the tween
+    // and the stale transform as well as visibility — leaving the transform
+    // behind is what made the NEXT fly-by flash on screen for one frame.
+    this.hideShark();
     this.sharkBurst = Math.min(this.sharkBurst, 0.16);
   }
 
@@ -1007,8 +1038,68 @@ export class JourneyScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * The one place the shark's transform is written, so the spawn frame and every
+   * later frame go through identical maths. Called BEFORE the container is ever
+   * made visible.
+   */
+  private placeShark(time: number) {
+    const arc = Math.sin(this.sharkProgress * Math.PI);
+    const x = Phaser.Math.Linear(journeyConfig.logicalSize.width + 74, -90, this.sharkProgress);
+    const y =
+      this.sharkBaseY +
+      Math.sin(this.sharkProgress * Math.PI * 2) * 12 +
+      Math.sin(time * 0.007 + this.sharkProgress * 8) * 4;
+
+    this.shark
+      .setPosition(x, y)
+      .setScale(0.93 + arc * 0.055, 0.985 - arc * 0.032)
+      .setRotation(Math.sin(time * 0.011 + this.sharkProgress * 3.2) * 0.085 - 0.1);
+    this.sharkShadow
+      .setPosition(x + 6, runnerConfig.visual.groundLineY - 44 + arc * 4)
+      // Follows the shark's own alpha so the exit fade carries the shadow too.
+      .setAlpha((0.05 + arc * 0.05) * this.shark.alpha);
+
+    return x;
+  }
+
+  /**
+   * Full reset: no tween left running, no stale transform, nothing visible.
+   * Every exit path routes through here (natural end, contact, pause, fail,
+   * victory, restart) so the next fly-by always starts from a known state.
+   */
+  private hideShark() {
+    this.sharkExitTween?.remove();
+    this.sharkExitTween = undefined;
+    this.tweens.killTweensOf(this.shark);
+    this.sharkPhase = 'hidden';
+    this.sharkTagged = false;
+    this.shark.setVisible(false).setAlpha(0.94).setPosition(SHARK_PARK_X, SHARK_PARK_Y);
+    this.sharkShadow.setVisible(false).setAlpha(0);
+  }
+
+  /**
+   * After it hands over its air, the shark flies on and fades rather than
+   * blinking out mid-screen. It keeps advancing along its arc during the fade.
+   */
+  private beginSharkExit() {
+    if (this.sharkPhase !== 'flying') {
+      return;
+    }
+
+    this.sharkPhase = 'exiting';
+    this.sharkExitTween?.remove();
+    this.sharkExitTween = this.tweens.add({
+      targets: this.shark,
+      alpha: 0,
+      duration: prefersReducedMotion() ? SHARK_EXIT_REDUCED_MS : SHARK_EXIT_MS,
+      ease: 'Quad.easeOut',
+      onComplete: () => this.hideShark()
+    });
+  }
+
   private updateSharkEvent(time: number, deltaSeconds: number, loopSnapshot: RunnerLoopSnapshot) {
-    if (!this.sharkActive) {
+    if (this.sharkPhase === 'hidden') {
       const pulse = sessionState.snapshot().currentPulse;
       // The guidance registry doubles as game-state here, same as the old
       // booleans: 'shark_sighting' = first shark window consumed,
@@ -1037,7 +1128,6 @@ export class JourneyScene extends Phaser.Scene {
         loopSnapshot.levelProgress < 0.84 &&
         !loopSnapshot.levelComplete
       ) {
-        this.sharkActive = true;
         this.sharkProgress = 0;
         this.sharkDuration = firstSharkWindow
           ? Phaser.Math.FloatBetween(3.05, 3.35)
@@ -1046,6 +1136,11 @@ export class JourneyScene extends Phaser.Scene {
           ? Phaser.Math.Between(334, 352)
           : Phaser.Math.Between(340, 370);
         this.sharkTagged = false;
+        this.sharkPhase = 'flying';
+        // Position first, THEN show. Showing first rendered one frame at the
+        // transform the previous fly-by was hidden at — the reported flash.
+        this.shark.setAlpha(0.94);
+        this.placeShark(time);
         this.shark.setVisible(true);
         this.sharkShadow.setVisible(true);
 
@@ -1059,22 +1154,20 @@ export class JourneyScene extends Phaser.Scene {
       return;
     }
 
-    this.sharkProgress += deltaSeconds / this.sharkDuration;
+    this.sharkProgress = Math.min(1, this.sharkProgress + deltaSeconds / this.sharkDuration);
 
-    const arc = Math.sin(this.sharkProgress * Math.PI);
-    const x = Phaser.Math.Linear(journeyConfig.logicalSize.width + 74, -90, this.sharkProgress);
-    const y =
-      this.sharkBaseY +
-      Math.sin(this.sharkProgress * Math.PI * 2) * 12 +
-      Math.sin(time * 0.007 + this.sharkProgress * 8) * 4;
+    const x = this.placeShark(time);
+    const y = this.shark.y;
 
-    this.shark
-      .setPosition(x, y)
-      .setScale(0.93 + arc * 0.055, 0.985 - arc * 0.032)
-      .setRotation(Math.sin(time * 0.011 + this.sharkProgress * 3.2) * 0.085 - 0.1);
-    this.sharkShadow
-      .setPosition(x + 6, runnerConfig.visual.groundLineY - 44 + arc * 4)
-      .setAlpha(0.05 + arc * 0.05);
+    // Still flying out after a rescue: keep the arc going under the fade, but
+    // no second contact and no new decisions.
+    if (this.sharkPhase === 'exiting') {
+      if (this.sharkProgress >= 1) {
+        this.hideShark();
+      }
+
+      return;
+    }
 
     if (!this.sharkTagged && Math.abs(x - this.hero.x) < 48 && Math.abs(y - this.hero.y) < 76) {
       this.sharkTagged = true;
@@ -1127,18 +1220,14 @@ export class JourneyScene extends Phaser.Scene {
         }
       }
 
-      this.sharkActive = false;
-      this.shark.setVisible(false);
-      this.sharkShadow.setVisible(false);
       this.sharkCooldown = Phaser.Math.FloatBetween(6.4, 8.8);
+      this.beginSharkExit();
       return;
     }
 
     if (this.sharkProgress >= 1) {
-      this.sharkActive = false;
-      this.shark.setVisible(false);
-      this.sharkShadow.setVisible(false);
       this.sharkCooldown = Phaser.Math.FloatBetween(5.4, 8.2);
+      this.hideShark();
     }
   }
 
