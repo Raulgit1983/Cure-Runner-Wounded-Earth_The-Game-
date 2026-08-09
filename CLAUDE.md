@@ -488,12 +488,28 @@ Ingredient: Fragmento de Ritmo.
 Skill: timing, clearer obstacle reading.  
 Message: “Mirar mejor también es cuidar.”
 
-### Level 3 — La Escuela del Ruido
+### Level 3 — The Black Forest
 
-Theme: pressure, noise, oppressive systems transformed through creativity.  
-Ingredient: Silencio Valiente.  
-Skill: rhythm through noise, safe navigation.  
-Message: “No todo ruido puede apagar una canción.”
+**Current decision (2026-08-09, supersedes the "La Escuela del Ruido" sketch
+below):** the third stage is **The Black Forest**, built from Mateo's `BG 2`
+sheet. It is implemented and playable — see
+[docs/memory/level-03-direction.md](docs/memory/level-03-direction.md).
+
+Stage chain: `wounded-planet → moonlight-mountain → black-forest → end`.
+
+- Theme: a forest that is already watching and already breathing.
+- Skill: reuses the verified vocabulary only (grounded shard to jump, overhead
+  mirror/crown to duck, ledge for the platform route). No new mechanic.
+- Ingredient: **[PENDIENTE DE RAÚL]** — an explicit neutral placeholder ships
+  today, deliberately not the Nota Sol.
+- Message: **[PENDIENTE DE RAÚL]** — the closing copy is neutral and factual.
+- Boss: **[PENDIENTE DE RAÚL]** — Chomper is drawn but not designed in.
+
+The original sketch is kept for the wider Season 1 arc, unassigned to a slot:
+
+> *La Escuela del Ruido* — pressure, noise, oppressive systems transformed
+> through creativity. Ingredient: Silencio Valiente. Skill: rhythm through
+> noise, safe navigation. Message: "No todo ruido puede apagar una canción."
 
 ### Level 4 — La Frontera del Viento
 

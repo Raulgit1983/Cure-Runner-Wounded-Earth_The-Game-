@@ -1,6 +1,6 @@
 ---
 tags: [cure-runner, mateo-game, memory, ai-agent]
-updated: 2026-06-21
+updated: 2026-08-09
 ---
 
 # Next Agent Brief
@@ -8,37 +8,52 @@ updated: 2026-06-21
 Read this before touching the repo. Pair with [project-current-state.md](project-current-state.md).
 
 ## Status assumptions
-- Repo compiles: `tsc --noEmit` and `vite build` are green as of 2026-06-21.
-- Active work line: foundation for a future 10-level expansion. Last slice = minimal level registry.
+- Repo compiles: `npm run check`, `npm run build` and `npm test` (**93 tests**) are green as of 2026-08-09.
+- Active work line: three playable stages, three playable characters. The last batch was the Devilz animation pack, the Tiburoncín flash fix and The Black Forest.
+- **Four commits are local only and have NOT been pushed** (`da731e0`, `c256b85`, `1eb0033`, `bf900b1`). Do not push without Raúl saying so.
 - `dist/` is gitignored; do not commit build output.
 
 ## Architecture facts (do not re-derive)
 - Scenes orchestrate; rules live in `systems/`; values in `content/`; persistence behind `services/`.
-- Level layer exists but is **metadata only**: one level `w1-l1` wrapping `journeyStages['wounded-planet']` by reference. Not consumed in gameplay beyond initial-stage resolution in [BootScene.ts](../../src/game/scenes/BootScene.ts).
-- [JourneyScene.ts](../../src/game/scenes/JourneyScene.ts) is a ~3255 LOC god-object pending incremental decomposition.
-- Firebase = no-op stub, unimported. Audio = procedural. No tests. No PWA.
+- Stage chain: `wounded-planet → moonlight-mountain → black-forest → end`. Level layer is still **metadata only** — `LevelDefinition` resolves the initial stage and nothing else.
+- Backdrops implement [StageBackdrop](../../src/game/systems/backdrop/StageBackdrop.ts). `BackdropRenderer` paints stages 1-2 with Graphics; `BlackForestBackdropRenderer` composes Mateo's scanned sheet with parallax.
+- Per-stage differences live in `JourneyStageTraits`, **not** in `backdropKind === '<stage>'` checks. Those were all removed on purpose.
+- Character poses/animation live in `systems/character/`. `JourneyScene` owns position, origin, depth, alpha, scale and rotation; the animator only picks the frame.
+- Firebase = no-op stub, unimported. Audio = procedural. No PWA.
 
-## Highest-priority next slice
-- **Extract `BackdropRenderer` from JourneyScene** (behavior-preserving move). Inputs: `(theme, distance, surfaceProgress, mood)`. No visual change.
-- Do this as ONE commit. Next slices after it: `GuidanceDirector`, then overlays, then expand `LevelDefinition`, then author levels 1-10 as data.
+## Traps that will bite you
+1. **Phaser animations do not advance from `Scene.update()`.** They run on the animation manager. If you add an early return to `update()`, the run cycle keeps playing behind your overlay. `CharacterAnimator.setPaused()` exists for exactly this.
+2. **Never make a game object visible before positioning it.** That was the Tiburoncín one-frame flash: `setVisible(true)` then `return`, leaving the previous fly-by's transform on screen for a frame. Every shark exit now routes through `hideShark()`, which parks it off-screen.
+3. **Do not size or foot a sprite from `texture.height`.** Animation pack v2 pads its canvas; Carlitos' does not. Read `CharacterArtMetrics` (measured alpha bounds) instead. Getting this wrong is what made the Devilz float 18-26 px above the floor.
+4. **`FinishFlow`'s per-frame contract** is still the sharpest edge: `advance` → `decayPulse` → `update`, the last strictly before the hero block. Do not reorder without a browser smoke test of the finish sequence.
+5. Adding a stage means adding a `JourneyStageTraits` entry, a `STAGE_OVERLAY_COPY` entry and a `stageRules` entry in `phraseFairness.test.ts`. TypeScript will tell you; the fairness test will check your data.
+
+## Highest-priority next slices
+1. **Real-phone pass.** Everything so far was verified in headless Chromium at an iPhone-13 viewport. Three stages, three characters and an image backdrop have never run on real hardware. This is the biggest open risk.
+2. **Black Forest creative decisions (Raúl's).** Ingredient, closing message and the Chomper boss all ship as explicit `[PENDIENTE DE RAÚL]` placeholders.
+3. **Eye / mouth re-export decision (Raúl's).** The forest's "Follows The Player" eye and "Yawns Randomly" mouth are not wired; the cut-outs need their scanner paper thresholded out and registering against `bg-main`. See the class doc in `BlackForestBackdropRenderer`.
+4. Expand `LevelDefinition` so it actually drives tuning, phrase pools and mechanic flags.
 
 ## Validation commands (run before closing any slice)
 ```
 npm run check   # tsc --noEmit
 npm run build   # tsc --noEmit && vite build
+npm test        # vitest run
+git diff --check
 ```
-Plus a local sanity pass on `0.0.0.0:4321` if behavior could change.
+Plus a browser pass on `localhost:5174` at a 360x640 viewport if behaviour could change.
 
 ## Forbidden changes
+- No push, deploy or remote change without explicit human permission.
 - No broad rewrite. No editing physics/movement/collision in [RunnerLoopSystem.ts](../../src/game/systems/runner/RunnerLoopSystem.ts).
 - No tuning/copy/visual changes unless that IS the slice's scope.
-- No Firebase implementation, no new deps, no deploy/workflow edits, no asset changes, unless explicitly the task.
-- Do not author levels 2-10 until the extractions + expanded `LevelDefinition` are done.
+- Do not delete or overwrite old assets. The v1 Devilz art and `Imagenes/files/` originals stay.
+- Do not invent an ingredient, boss, mechanic or ending that Raúl has not decided. Mark it `[PENDIENTE DE RAÚL]` instead.
 - Do not invent systems that do not exist. Mark uncertain claims **Needs verification**.
 
 ## Expected output format
 - Change summary (what + why).
 - Files created / modified / untracked.
 - Confirmation runtime behavior is unchanged (or what changed and why).
-- Validation results (`check`, `build`).
+- Validation results (`check`, `build`, `test`).
 - Residual risk + suggested commit message.
