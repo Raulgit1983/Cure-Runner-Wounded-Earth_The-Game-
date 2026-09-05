@@ -9,6 +9,37 @@ Compact, high-signal snapshot. Source of truth for agents. Update when a slice l
 
 ## Current verified snapshot — 2026-09-05
 
+### Latest continuation — Chomper puppet candidate
+
+- Preflight verified clean at `bc8ed3178684dad65952e8dcd57f8f7b0380f036`
+  on `visual/world-01-carlitos-drive`. The earlier polish was already committed.
+- Raúl explicitly approved the arena finish and authorized the best extraction
+  method in response to conventional masks. Six true-alpha pieces now retain
+  the approved source RGB; the empty plate uses generated inpainting only around
+  the removed figure. Original/source/runtime-approved bytes remain untouched.
+- Raúl physically viewed the first motion pass and rejected it as basic,
+  discreet and stiff-bodied. He then requested a lunging bite and corrected two
+  interim choices: the upper red head must refuse/open/close, and the hazard
+  must not fall almost vertically over the hero. Optional DEV route
+  `/?encounter=chomper&chomperArt=rig` now runs motion v4. The red head has three
+  articulated jaws, shakes twice in warning, descends at the far-left edge,
+  sweeps the ground lane left-to-right, closes at contact and exits below/left.
+  The encounter collider and puppet use the same path. A localized backlight
+  plus a thin moving rim separates the silhouette without changing source RGB.
+- Review UI: `/art-lab/2026-09-05-chomper-rig/`; 7 candidate WebPs, 438720 bytes,
+  local ignored art-lab assets. Original preview remains available without rig
+  downloads. Production still excludes Chomper and every art-lab URL.
+- `check`, `build`, `test` (**216/216 in 19 files**) pass. Emulated Chrome checks
+  confirm 12 main poses plus 9 bite-path samples, pause, reduced motion, contrast,
+  6-note/3-life victory by jumping, retry, route and gesture-unlocked audio.
+  Bite warning and impact are distinct. Raúl then viewed v4 on his phone,
+  answered «Muy bien» and asked to save it before a new editorial/art pass.
+- Changes are saved as the local checkpoint at the current Git HEAD; verify its
+  exact hash on entry. No push, deploy, install, payment or Claude call.
+  See [Chomper rig continuation](chomper-rig-2026-09-05.md) and CONTINUE_HERE.
+
+### Previous September polish snapshot
+
 - Branch `visual/world-01-carlitos-drive`. Clean preflight base:
   `e1480b0105edd6217fd0016d624f7851ab3c1216`; the September polish is saved in
   one local commit after that base. It has not been pushed or deployed. Remote state
@@ -39,7 +70,7 @@ Compact, high-signal snapshot. Source of truth for agents. Update when a slice l
   silhouettes and a clear flat support edge. The two existing rewards are a
   drawn clef medallion and engraved lunar shard, without a symbol-font dependency.
 - **Chomper was explicitly authorized as a fourth scene** by Raúl this turn.
-  Its isolated fixed-step model implements two alternating telegraphed attacks,
+  Its isolated fixed-step model implements three rotating telegraphed attacks,
   jumps, three lives, six recovery notes, pause, retry, home and neutral victory.
   These are provisional tuning choices, not inferred notes from Mateo's drawing.
 - The scene is a **DEV-only playable preview**: Black Forest's Seguir reaches it;
@@ -49,7 +80,7 @@ Compact, high-signal snapshot. Source of truth for agents. Update when a slice l
   paused clock and the forest-to-boss route, with no reported errors.
 - After a temporary tool usage block, the full browser pass was repeated:
   emission paths and normal guarded continuation render/run without errors;
-  3 low + 3 high warning events, 6 pickup events and 1 victory event were counted,
+  2 low + 2 high + 2 bite warning events, 6 pickup events and 1 victory event were counted,
   all gesture-unlocked. This does not replace listening on real hardware.
 - Production build contains no Chomper scene chunk or art-lab URL. The boss is
   not silently enabled or shipped with an unavailable local image.
@@ -60,8 +91,10 @@ Compact, high-signal snapshot. Source of truth for agents. Update when a slice l
   AST comparison: all 66 unaffected runner members identical to HEAD; only four
   art methods changed and one unused painting helper removed. Existing runtime
   image bytes and Mateo's source images are unchanged. No new ingredient/ending.
-- Next: review the candidates, develop the boss's separate animated art parts,
-  and test on a real phone; then promote accepted art and enable the fourth scene.
+- Next: before any deploy, audit every text surface, typography, palette,
+  composition and chapter ending; reframe Moonlight Mountain around its centred
+  moon and title, integrate the Black Forest floor, and redesign the final as a
+  full-screen invitation for players to send ideas and build the game together.
 
 Evidence and paths: [September polish](polish-2026-09-05.md).
 

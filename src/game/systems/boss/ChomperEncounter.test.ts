@@ -5,6 +5,13 @@ const step = (game: ChomperEncounter, seconds: number, hz = 120) => {
   for (let i = 0; i < Math.round(seconds * hz); i++) game.advance(1 / hz);
 };
 const started = () => { const game = new ChomperEncounter(); game.start(); return game; };
+const reachBiteWarning = (game: ChomperEncounter) => {
+  step(game, R.warningSeconds + 0.25);
+  game.jump();
+  step(game, R.attackSeconds - 0.25 + R.recoverySeconds);
+  step(game, R.warningSeconds + R.attackSeconds + R.recoverySeconds);
+  expect(game.snapshot()).toMatchObject({ phase: 'warning', attack: 'bite-lunge', lives: 3 });
+};
 
 describe('Chomper encounter', () => {
   it('waits for an explicit start, then warns without creating a hazard', () => {
@@ -40,6 +47,31 @@ describe('Chomper encounter', () => {
     const lives = game.snapshot().lives;
     step(game, R.warningSeconds + R.attackSeconds);
     expect(game.snapshot().lives).toBe(lives);
+  });
+
+  it('cycles through low wave, high discharge and the body-first bite', () => {
+    const game = started();
+    expect(game.snapshot().attack).toBe('low-wave');
+    step(game, R.warningSeconds + R.attackSeconds + R.recoverySeconds);
+    expect(game.snapshot().attack).toBe('high-burst');
+    step(game, R.warningSeconds + R.attackSeconds + R.recoverySeconds);
+    expect(game.snapshot().attack).toBe('bite-lunge');
+  });
+
+  it('a grounded bite makes contact once during its short strike window', () => {
+    const game = started();
+    reachBiteWarning(game);
+    step(game, R.warningSeconds + R.attackSeconds);
+    expect(game.snapshot()).toMatchObject({ lives: 2, phase: 'recovery', projectile: null });
+  });
+
+  it.each([0, 0.1, 0.25, 0.35])('a single jump %s s after the Now cue clears the bite', (reactionSeconds) => {
+    const game = started();
+    reachBiteWarning(game);
+    step(game, R.warningSeconds + reactionSeconds);
+    game.jump();
+    step(game, R.attackSeconds - reactionSeconds);
+    expect(game.snapshot()).toMatchObject({ lives: 3, phase: 'recovery' });
   });
 
   it('jumping into the high discharge can hit the hero', () => {
@@ -107,7 +139,7 @@ describe('Chomper encounter', () => {
     const jumped = new Set<string>();
     for (let i = 0; i < 60 * 120 && game.snapshot().phase !== 'won'; i++) {
       const s = game.snapshot();
-      if (s.phase === 'attack' && s.attack === 'low-wave' && s.phaseElapsed >= 0.25 && !jumped.has(`attack-${s.cycle}`)) {
+      if (s.phase === 'attack' && s.attack !== 'high-burst' && s.phaseElapsed >= 0.25 && !jumped.has(`attack-${s.cycle}`)) {
         game.jump(); jumped.add(`attack-${s.cycle}`);
       }
       if (s.phase === 'recovery' && s.noteAvailable && s.grounded) game.jump();
@@ -119,7 +151,7 @@ describe('Chomper encounter', () => {
     expect(game.snapshot()).toEqual(won);
   });
 
-  it('loses after three low-wave hits and cannot keep dealing damage afterward', () => {
+  it('loses after three contact hits and cannot keep dealing damage afterward', () => {
     const game = started(); step(game, 40);
     expect(game.snapshot()).toMatchObject({ phase: 'lost', lives: 0, projectile: null });
     const lost = game.snapshot(); step(game, 10);

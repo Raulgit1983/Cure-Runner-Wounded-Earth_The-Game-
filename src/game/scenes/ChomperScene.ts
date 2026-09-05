@@ -1,16 +1,20 @@
 import Phaser from 'phaser';
 
 import { getCharacter } from '@/game/content/playableCharacters';
+import { wantsChomperRigPreview } from '@/game/content/chomperArt';
 import { localPreferenceStore } from '@/game/services/persistence/localPreferenceStore';
 import { audioCueBus } from '@/game/services/audio/audioCueBus';
 import { sessionState } from '@/game/state/sessionState';
 import { ChomperEncounter, CHOMPER_RULES as R, type ChomperSnapshot } from '@/game/systems/boss/ChomperEncounter';
+import { ChomperArtRenderer } from '@/game/systems/boss/ChomperArtRenderer';
+import { CHOMPER_BITE_PATH } from '@/game/systems/boss/chomperBitePath';
 import { prefersReducedMotion } from '@/ui/reducedMotion';
 import { UI_FONT_STACK } from '@/ui/phaserTextStyle';
 
 /** Local encounter preview: art/balance require review before release. */
 export class ChomperScene extends Phaser.Scene {
   private encounter!: ChomperEncounter;
+  private bossArt?: ChomperArtRenderer;
   private hero!: Phaser.GameObjects.Image;
   private ink!: Phaser.GameObjects.Graphics;
   private status!: Phaser.GameObjects.Text;
@@ -25,8 +29,8 @@ export class ChomperScene extends Phaser.Scene {
   private heroScale = 1;
   private heroFootOffset = 0;
   private poses!: ReturnType<typeof getCharacter>['poses'];
-  // Visual-only emission paths join each authored mouth to its attack lane.
-  // They are not colliders, nor alterations to Mateo's body/head silhouettes.
+  // Visual-only emission paths join each authored mouth to the two ranged
+  // attack lanes. The bite is carried by the moving puppet itself.
   private readonly emissionPaths = {
     'low-wave': [{ x: 216, y: 286 }, { x: 183, y: 310 }, { x: 145, y: 350 },
       { x: 116, y: 407 }, { x: 110, y: 467 }, { x: 123, y: 518 }, { x: 152, y: R.lowY }],
@@ -51,6 +55,7 @@ export class ChomperScene extends Phaser.Scene {
   constructor() { super('chomper'); }
 
   preload() {
+    if (wantsChomperRigPreview()) ChomperArtRenderer.preload(this);
     // Art-lab candidates cannot enter a production build by accident.
     if (import.meta.env.DEV && !this.textures.exists('chomper-arena-preview')) {
       this.load.image('chomper-arena-preview', '/art-lab/2026-09-05-forest-polish/chomper-arena-v1.webp');
@@ -58,6 +63,7 @@ export class ChomperScene extends Phaser.Scene {
   }
 
   create() {
+    this.bossArt = undefined;
     this.encounter = new ChomperEncounter();
     this.leaving = false;
     this.lastMode = '';
@@ -68,7 +74,9 @@ export class ChomperScene extends Phaser.Scene {
     window.dispatchEvent(new CustomEvent('mateo:focus-mode', { detail: { active: false } }));
     window.dispatchEvent(new CustomEvent('mateo:victory-state', { detail: { active: false } }));
 
-    if (this.textures.exists('chomper-arena-preview')) {
+    if (wantsChomperRigPreview() && ChomperArtRenderer.available(this)) {
+      this.bossArt = new ChomperArtRenderer(this);
+    } else if (this.textures.exists('chomper-arena-preview')) {
       this.add.image(0, 64, 'chomper-arena-preview').setOrigin(0).setDisplaySize(360, 540);
     }
     const floor = this.add.graphics();
@@ -160,6 +168,8 @@ export class ChomperScene extends Phaser.Scene {
   }
 
   private render(s: ChomperSnapshot) {
+    const reducedMotion = prefersReducedMotion();
+    this.bossArt?.update(s, reducedMotion);
     this.hero.setY(s.heroY + this.heroFootOffset);
     const pose = s.phase === 'won' ? this.poses.finishAwakened
       : s.invulnerability > 1 ? this.poses.hit
@@ -169,40 +179,72 @@ export class ChomperScene extends Phaser.Scene {
     this.hero.setAlpha(s.invulnerability > 0 ? 0.7 : 1);
     this.status.setText(`Energía ${s.lives}/${R.lives}     Notas ${s.notes}/${R.notesToWin}`);
     const low = s.attack === 'low-wave';
-    const color = low ? 0xffad79 : 0xd6a3ff;
-    const y = low ? R.lowY : R.highY;
+    const high = s.attack === 'high-burst';
+    const bite = s.attack === 'bite-lunge';
+    const color = low ? 0xffad79 : high ? 0xd6a3ff : 0xff716b;
+    const y = low ? R.lowY : high ? R.highY : CHOMPER_BITE_PATH.contact.y;
+    const path = s.attack === 'bite-lunge' ? undefined : this.emissionPaths[s.attack];
+    const mouth = this.bossArt?.mouth(s.attack) ?? path?.[0] ??
+      (bite ? { x: 126, y: 181 } : { x: 216, y: 286 });
+    this.ink.setDepth(bite && (s.phase === 'warning' || s.phase === 'attack') ? 3.5 : 2);
     this.instruction.setText(s.phase === 'recovery' ? 'Ahora: alcanza la nota'
-      : s.phase === 'warning' ? low ? 'Prepárate · onda baja' : 'Prepárate · descarga alta'
-        : s.phase === 'attack' ? low ? '¡Ahora! · salta' : 'Descarga alta · quédate abajo' : '');
+      : s.phase === 'warning' ? low ? 'Prepárate · onda baja'
+        : high ? 'Prepárate · descarga alta' : 'Prepárate · mordisco'
+        : s.phase === 'attack' ? low ? '¡Ahora! · salta'
+          : high ? 'Descarga alta · quédate abajo' : '¡Ahora! · salta el mordisco' : '');
     this.ink.clear();
-    if (s.phase === 'warning' || (s.phase === 'attack' && s.phaseElapsed < 0.3)) {
+    if (path && (s.phase === 'warning' || (s.phase === 'attack' && s.phaseElapsed < 0.3))) {
       const alpha = s.phase === 'warning' ? 0.16 : 0.65 * (1 - s.phaseElapsed / 0.3);
-      this.ink.lineStyle(2, color, alpha).strokePoints(this.emissionPaths[s.attack], false);
+      this.ink.lineStyle(2, color, alpha).strokePoints([mouth, ...path.slice(1)], false);
     }
     if (s.phase === 'warning') {
       if (!s.paused && this.lastWarningCycle !== s.cycle) {
         this.lastWarningCycle = s.cycle;
-        audioCueBus.emit({ type: low ? 'chomper_warning_low' : 'chomper_warning_high', intensity: 1 });
+        const cue = low ? 'chomper_warning_low' : high ? 'chomper_warning_high' : 'chomper_warning_bite';
+        audioCueBus.emit({ type: cue, intensity: 1 });
       }
       // Shape + text + position carry the instruction; colour is not the only cue.
       this.ink.lineStyle(2, color, 0.4);
-      for (let x = 224; x < 337; x += 14) this.ink.lineBetween(x, y, x + 7, y);
-      this.ink.lineStyle(3, color, 0.8).strokeCircle(low ? 216 : 126, low ? 286 : 181, 12 + s.phaseProgress * 6);
+      if (bite) {
+        const spread = 24 - s.phaseProgress * 8;
+        this.ink.lineStyle(3, color, 0.72);
+        this.ink.lineBetween(R.heroX - 26, y - spread, R.heroX, y - 8);
+        this.ink.lineBetween(R.heroX, y - 8, R.heroX + 25, y - spread);
+        this.ink.lineBetween(R.heroX - 26, y + 6, R.heroX, y - 3);
+        this.ink.lineBetween(R.heroX, y - 3, R.heroX + 25, y + 6);
+      } else {
+        for (let x = 224; x < 337; x += 14) this.ink.lineBetween(x, y, x + 7, y);
+      }
+      this.ink.lineStyle(3, color, 0.8).strokeCircle(mouth.x, mouth.y, 12 + s.phaseProgress * 6);
     }
     if (s.projectile) {
       const p = s.projectile;
-      this.ink.lineStyle(3, color, 0.45).lineBetween(p.x - 28, p.y, p.x - 10, p.y);
-      this.ink.fillStyle(0x18132a, 1).fillCircle(p.x, p.y, p.radius + 2);
-      this.ink.lineStyle(3, color, 1).strokeCircle(p.x, p.y, p.radius);
+      if (bite) {
+        this.ink.lineStyle(reducedMotion ? 4 : 3, color, 0.95);
+        if (reducedMotion) {
+          this.ink.lineBetween(p.x - 15, p.y - 17, p.x + 11, p.y - 7);
+          this.ink.lineBetween(p.x - 15, p.y + 13, p.x + 11, p.y + 5);
+        } else {
+          this.ink.strokeCircle(p.x, p.y, 18);
+          this.ink.lineBetween(p.x - 29, p.y - 23, p.x - 20, p.y - 16);
+          this.ink.lineBetween(p.x + 20, p.y - 16, p.x + 29, p.y - 23);
+          this.ink.lineBetween(p.x - 27, p.y + 20, p.x - 18, p.y + 14);
+          this.ink.lineBetween(p.x + 18, p.y + 14, p.x + 27, p.y + 20);
+        }
+      } else {
+        this.ink.lineStyle(3, color, 0.45).lineBetween(p.x - 28, p.y, p.x - 10, p.y);
+        this.ink.fillStyle(0x18132a, 1).fillCircle(p.x, p.y, p.radius + 2);
+        this.ink.lineStyle(3, color, 1).strokeCircle(p.x, p.y, p.radius);
+      }
       if (low) {
         this.ink.lineStyle(2, color, 1).lineBetween(p.x - 6, p.y + 3, p.x - 2, p.y - 3);
         this.ink.lineBetween(p.x - 2, p.y - 3, p.x + 2, p.y + 3);
         this.ink.lineBetween(p.x + 2, p.y + 3, p.x + 6, p.y - 3);
       }
-      else this.ink.fillStyle(color, 1).fillTriangle(p.x - 6, p.y - 3, p.x + 7, p.y, p.x - 6, p.y + 4);
+      else if (high) this.ink.fillStyle(color, 1).fillTriangle(p.x - 6, p.y - 3, p.x + 7, p.y, p.x - 6, p.y + 4);
     }
     if (s.noteAvailable) {
-      const bob = prefersReducedMotion() ? 0 : Math.sin(s.phaseElapsed * 3) * 2;
+      const bob = reducedMotion ? 0 : Math.sin(s.phaseElapsed * 3) * 2;
       const x = R.noteX, noteY = R.noteY + bob;
       this.ink.lineStyle(2, 0xf5dc88, 0.3).strokeCircle(x, noteY, 23);
       this.ink.fillStyle(0x101c22, 1).fillCircle(x, noteY, 16);
@@ -214,10 +256,10 @@ export class ChomperScene extends Phaser.Scene {
     if (mode === this.lastMode) return;
     this.lastMode = mode;
     const copy: Record<string, [string, string, string]> = {
-      ready: ['Chomper', 'Salta la onda baja al ver «¡Ahora!».\nEn la descarga alta, quédate abajo.\nDespués del ataque, busca la nota.', 'Comenzar'],
+      ready: ['Chomper', 'Salta la onda baja y el mordisco al ver «¡Ahora!».\nEn la descarga alta, quédate abajo.\nDespués, busca la nota.', 'Comenzar'],
       paused: ['En pausa', 'El encuentro te espera.\nLos ataques también están detenidos.', 'Continuar'],
       won: ['Encuentro superado', 'Has reunido las seis notas.\nEl cierre de la historia sigue en creación.', 'Jugar de nuevo'],
-      lost: ['Una vez más', 'Mira el aviso antes de saltar.\nPuedes volver a intentarlo.', 'Reintentar']
+      lost: ['Una vez más', 'Mira qué ataque prepara Chomper antes de saltar.\nPuedes volver a intentarlo.', 'Reintentar']
     };
     const panel = copy[mode];
     this.modal.setVisible(!!panel);

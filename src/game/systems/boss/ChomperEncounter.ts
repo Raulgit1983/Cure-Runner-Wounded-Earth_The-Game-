@@ -3,7 +3,10 @@
  * No Phaser, timers, storage or changes to the existing runner's rules.
  * All attack clocks and collision decisions share one fixed simulation step.
  */
-export type ChomperAttack = 'low-wave' | 'high-burst';
+import { CHOMPER_BITE_PATH, resolveChomperBitePoint } from './chomperBitePath';
+
+export const CHOMPER_ATTACKS = ['low-wave', 'high-burst', 'bite-lunge'] as const;
+export type ChomperAttack = typeof CHOMPER_ATTACKS[number];
 export type ChomperPhase = 'ready' | 'warning' | 'attack' | 'recovery' | 'won' | 'lost';
 
 export const CHOMPER_RULES = {
@@ -28,6 +31,10 @@ export const CHOMPER_RULES = {
   projectileRadius: 11,
   projectileStartX: 152,
   projectileEndX: 405,
+  // The bite is a short contact window, delayed far enough for a 350 ms
+  // mobile reaction. Its low jaw line is cleared by either an early jump or
+  // a jump on the cue; the visual body can keep recoiling after contact ends.
+  biteRadius: 28,
   noteX: 278,
   noteY: 446,
   noteRadius: 22
@@ -96,7 +103,7 @@ export class ChomperEncounter {
   snapshot(): ChomperSnapshot {
     const duration = this.duration();
     return {
-      phase: this.phase, attack: this.cycle % 2 === 0 ? 'low-wave' : 'high-burst',
+      phase: this.phase, attack: this.currentAttack(),
       phaseElapsed: this.phaseElapsed,
       phaseProgress: duration ? clamp(this.phaseElapsed / duration, 0, 1) : 0,
       paused: this.paused, lives: this.lives, notes: this.notes, cycle: this.cycle,
@@ -118,13 +125,27 @@ export class ChomperEncounter {
     return 0;
   }
 
+  private currentAttack(): ChomperAttack {
+    return CHOMPER_ATTACKS[this.cycle % CHOMPER_ATTACKS.length];
+  }
+
   private projectile() {
     if (this.phase !== 'attack') return null;
     const r = CHOMPER_RULES;
     const progress = clamp(this.phaseElapsed / r.attackSeconds, 0, 1);
+    if (this.currentAttack() === 'bite-lunge') {
+      if (progress < CHOMPER_BITE_PATH.hazardStartProgress ||
+          progress > CHOMPER_BITE_PATH.hazardEndProgress) return null;
+      const point = resolveChomperBitePoint(progress);
+      return {
+        x: point.x,
+        y: point.y,
+        radius: r.biteRadius
+      };
+    }
     return {
       x: r.projectileStartX + (r.projectileEndX - r.projectileStartX) * progress,
-      y: this.cycle % 2 === 0 ? r.lowY : r.highY,
+      y: this.currentAttack() === 'low-wave' ? r.lowY : r.highY,
       radius: r.projectileRadius
     };
   }

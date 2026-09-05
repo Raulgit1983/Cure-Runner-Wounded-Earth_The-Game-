@@ -8,6 +8,21 @@ updated: 2026-09-05
 Read this before touching the repo. Pair with [project-current-state.md](project-current-state.md).
 
 ## Status assumptions
+- **Latest continuation:** start from `CONTINUE_HERE.md`. Preflight base
+  `bc8ed3178684dad65952e8dcd57f8f7b0380f036`; new rig changes are WIP.
+  Arena finish explicitly approved. Raúl rejected the first motion pass as too
+  basic/discreet with a stiff body, then requested a lunging bite. He corrected
+  the interim gold/vertical version: the red upper head must refuse, open and
+  close, and the bite must be avoidable without falling onto a jumping hero.
+  Raúl viewed motion v4 on his phone, answered «Muy bien» and asked to save it
+  before opening a clean task for the next visual/editorial pass.
+  Use `/?encounter=chomper&chomperArt=rig` or the interactive comparison at
+  `/art-lab/2026-09-05-chomper-rig/`. The upper red head has three articulated
+  jaws and a two-beat refusal. The body enters down the far left, sweeps the
+  ground left-to-right and exits below/left. A localized backlight and thin rim
+  separate Chomper from the forest. 216 tests / 19 files pass.
+  Candidate WebPs have real alpha; do not reuse the rejected RGB checkerboard.
+  Chomper remains DEV-only. See [rig report](chomper-rig-2026-09-05.md).
 - Codex/Astra now owns implementation too; **do not invoke Claude** unless Raúl
   explicitly re-enables it. September polish was saved locally after base
   `e1480b0`; read the exact current HEAD rather than trusting an abbreviated hash.
@@ -21,7 +36,10 @@ Read this before touching the repo. Pair with [project-current-state.md](project
 - **Historical record:** deployed to GitHub Pages on 2026-08-09 on Raúl's explicit instruction, by
   merging `visual/world-01-carlitos-drive` into `main`. Before that the live
   site was 33 commits behind. Production is not reverified this turn. The
-  September slice has a 360x640 / DPR 2 Chrome pass, **not a physical-device pass**.
+  current motion v4 has a 360x640 / DPR 2 Chrome pass, including nine path
+  checkpoints and a no-hit victory bot. The earlier rigs received physical
+  criticism; v4 received a positive physical review, but its audio has not had
+  a documented perceptual listening pass.
 - `dist/` is gitignored; do not commit build output. `art-lab/` is gitignored too
   (~106 MB of art working material, kept on disk like `Imagenes/`); the accepted
   output of an art pass is copied into `src/assets/worlds/` and committed there.
@@ -83,26 +101,34 @@ Read this before touching the repo. Pair with [project-current-state.md](project
   second half of every run. `blackForestArt.test.ts` bounds it.
 
 ## Highest-priority next slices
-1. **Real-phone pass.** September emulation is 360x640 / DPR 2. The temporary
-   tool usage block was resolved on continuation; `qa-boss.mjs`, `qa-dev.mjs`
-   and `qa-art.mjs` passed against the current tree. Boss warning/pickup/victory
-   audio events are counted, but not a perceptual listening test. Never
-   describe emulation as hardware acceptance.
-2. **Black Forest floor candidate awaits selection.** The plate occupies y 87..383 of a 640
-   tall canvas, so the whole play band is flat sky with no material, while
-   stages 1-2 have Mateo's paper texture edge to edge. The feather softened the
-   seams; it did not fill the void. Re-framing the band is an art-direction call
-   and belongs to Codex/Raúl, not to a code slice. A versioned, low-contrast
-   material candidate and in-game preview now live in
-   `art-lab/2026-09-05-forest-polish/`; they are not runtime assets. See
+1. **Mobile-first editorial and visual audit before deploy.** Review every text,
+   panel, button, hint, warning and chapter ending. Replace the blurred-looking
+   typography system with a crisp, legible family and disciplined sizing,
+   spacing, hierarchy, composition and palette. Inspect every resulting screen
+   at mobile size, including long and short copy.
+2. **Reframe Moonlight Mountain.** The current art feels stretched and hides the
+   moon. Keep the moon visible and centred, centre `Shine to the beat`, preserve
+   Mateo's focal drawing and compose/extend the playable terrain around it as a
+   versioned candidate rather than deforming the source.
+3. **Integrate the Black Forest floor.** The current play lane reads as a black
+   strip. Use or improve the existing material candidate so the ground belongs
+   to Mateo's forest, then verify contrast against characters and hazards. The
+   plate occupies y 87..383 of a 640-tall canvas, leaving the play band as flat
+   sky. The versioned candidate and review live in
+   `art-lab/2026-09-05-forest-polish/`; see
    [polish-2026-09-05.md](polish-2026-09-05.md).
-3. **Chomper candidate/encounter review.** Raúl authorized building the boss
+4. **Rewrite the final as a full-screen poster.** Keep useful current content,
+   add a warm invitation to Mateo/players to send a message describing what
+   they would add, change or imagine, and frame it as continuing to build the
+   game together. Do not call the message a prompt or use technical language.
+5. **Chomper candidate/encounter review.** Raúl authorized building the boss
    after the three stages. Rules and a DEV-only scene now exist, with six-note
-   victory, two attacks and pause/retry. Do not restart the work or call it
-   production-ready: candidate approval, full art rig and human balance review
-   remain. Black Forest ingredient and narrative closing are still undecided.
-4. ~~Eye / mouth re-export decision~~ — **done 2026-08-09.** Both behaviours are wired off an approved art pass. Do not "fix" them back: the eye rests at offset (0,0), bounded by `IRIS_GAZE_MAX_X/Y` (currently ±8/±4 source px), and the mouth's rest phase is closed. See `blackForestArt.ts`.
-5. Expand `LevelDefinition` so it actually drives tuning, phrase pools and mechanic flags.
+   victory, three attacks (low wave, high burst, lunging bite) and pause/retry.
+   Do not restart the work or call it
+   production-ready: runtime promotion and final balance review remain. Black
+   Forest ingredient and narrative closing are still undecided.
+6. ~~Eye / mouth re-export decision~~ — **done 2026-08-09.** Both behaviours are wired off an approved art pass. Do not "fix" them back: the eye rests at offset (0,0), bounded by `IRIS_GAZE_MAX_X/Y` (currently ±8/±4 source px), and the mouth's rest phase is closed. See `blackForestArt.ts`.
+7. Expand `LevelDefinition` so it actually drives tuning, phrase pools and mechanic flags.
 
 ## Validation commands (run before closing any slice)
 ```

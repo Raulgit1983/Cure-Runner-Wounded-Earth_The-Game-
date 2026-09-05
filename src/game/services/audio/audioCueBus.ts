@@ -10,7 +10,8 @@ export type AudioCueType =
   | 'victory_win'
   | 'jump_player'
   | 'chomper_warning_low'
-  | 'chomper_warning_high';
+  | 'chomper_warning_high'
+  | 'chomper_warning_bite';
 
 export interface AudioCueEvent {
   type: AudioCueType;

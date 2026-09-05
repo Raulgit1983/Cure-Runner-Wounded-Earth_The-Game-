@@ -109,6 +109,20 @@ class ReactiveAudioLayer {
   }
 
   private renderCue(context: AudioContext, master: GainNode, event: AudioCueEvent) {
+    if (event.type === 'chomper_warning_bite') {
+      this.playTone(context, master, {
+        from: 154, to: 76,
+        duration: 0.28, volume: 0.032, type: 'triangle', attack: 0.018,
+        filterFrequency: 380
+      });
+      this.playTone(context, master, {
+        from: 96, to: 58,
+        duration: 0.15, delay: 0.21, volume: 0.018, type: 'square', attack: 0.012,
+        filterFrequency: 270
+      });
+      return;
+    }
+
     if (event.type === 'chomper_warning_low' || event.type === 'chomper_warning_high') {
       const low = event.type === 'chomper_warning_low';
       this.playTone(context, master, {
