@@ -1,6 +1,27 @@
 # Production stack orchestration
 
-Last verified: 2026-08-09
+Current authority updated: 2026-09-05
+
+## Active stack — supersedes the historical routing below
+
+Raúl's instruction: “Encárgate de la implementación tú que ya no tenemos a
+Claude sino Astra”. **Codex/Astra owns implementation, art, integration and QA.**
+Do not spend calls checking Claude or fall back to an API/paid tier. Re-enable
+Claude only on a new explicit request from Raúl. One writer in the main checkout;
+preserve the existing isolated worktrees and their WIP.
+
+During the handover, the already-launched Claude attempt ended before inference
+with no edits (2026-09-05). Its new worktree
+`.claude/worktrees/opus5-september-polish` remains at `e1480b0` with only its task
+brief; it served as a read-only comparison baseline. It is not an active worker.
+
+Human creative/product decisions, purchases, commit gates, push, deploy and
+destructive actions retain their existing boundaries. Art candidates stay in
+`art-lab/` until approved. See [project-current-state.md](project-current-state.md)
+for verified implementation status and [polish-2026-09-05.md](polish-2026-09-05.md)
+for this slice's evidence.
+
+## Historical stack — verified 2026-08-09, currently inactive
 
 This is the shared operational memory for Raúl, Codex, and Claude Code. Read it
 before delegating, generating art, or implementing an art-integration slice.

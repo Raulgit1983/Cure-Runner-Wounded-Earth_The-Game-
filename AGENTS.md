@@ -11,11 +11,14 @@ Read these files before changing the repository:
 
 ## Default team and authority
 
+- **Current instruction, 2026-09-05:** Raúl has retired Claude from this
+  production loop. Codex/Astra now implements as well as directing art and QA.
+  Do not invoke Claude, check its subscription, or create another Claude
+  worktree unless Raúl explicitly re-enables delegation. The Claude routing
+  instructions below are retained only for that future, conditional case.
 - Raúl is the final creative and product authority.
 - Codex is the default supervisor, art director, image specialist, integrator,
-  and final QA owner.
-- Claude Code is the primary implementation worker for difficult architecture,
-  debugging, refactors, performance work, tests, and other code-heavy slices.
+  implementation worker, and final QA owner.
 - Codex owns image generation and image editing, including composition fidelity,
   clean alpha, cut-outs, layers, colour/material treatment, mobile readability,
   asset optimization, and visual comparison against Mateo's source drawings.
@@ -27,9 +30,9 @@ Read these files before changing the repository:
 - Never create a recursive Codex -> Claude -> Codex loop. A Codex-led Claude
   worker must not call the configured Codex MCP.
 
-## Routing work from Codex to Claude
+## Historical Claude routing — inactive since 2026-09-05
 
-The Claude Code binary that exposes the account's current model catalogue is:
+The binary verified on 2026-08-09 was (not a current availability claim):
 
 `/Users/raulcapote/.antigravity-ide/extensions/anthropic.claude-code-2.1.226-darwin-arm64/resources/native-binary/claude`
 

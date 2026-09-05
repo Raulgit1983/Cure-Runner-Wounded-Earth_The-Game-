@@ -1,13 +1,78 @@
 ---
 tags: [cure-runner, mateo-game, memory, architecture]
-updated: 2026-08-09
+updated: 2026-09-05
 ---
 
 # Project Current State
 
 Compact, high-signal snapshot. Source of truth for agents. Update when a slice lands.
 
-## Latest batch (Fact — 2026-08-09, `da731e0..` on `visual/world-01-carlitos-drive`, local only, NOT pushed)
+## Current verified snapshot — 2026-09-05
+
+- Branch `visual/world-01-carlitos-drive`. Clean preflight base:
+  `e1480b0105edd6217fd0016d624f7851ab3c1216`; the September polish is saved in
+  one local commit after that base. It has not been pushed or deployed. Remote state
+  has not been checked this turn; do not reuse the old ahead/behind counts.
+- **Codex/Astra now implements directly. Claude delegation is inactive**, by
+  Raúl's latest instruction. See the production-stack contract.
+- All three stages are image-backed. Wounded Planet and Moonlight Mountain use
+  `ImageBackdropRenderer`; Black Forest uses its colour-v4 plate, iris and three
+  mouth states, with no tint-fill recolouring. Original/source assets unchanged.
+- Forest compositing: fully opaque art assembly, then one sky-coloured veil.
+  Container alpha is NOT group opacity in Phaser: it faded each patch separately
+  and exposed the plate underneath. The new veil preserves registration and
+  avoids this tonal mismatch without an offscreen buffer or new runtime asset.
+- `PauseFlow` now disposes its owned tweens/UI synchronously and idempotently;
+  no shutdown tween or resume call. Key repeat is ignored. Pause/help panels
+  contain their full button rows.
+- **199 tests in 17 files**, including 9 PauseFlow lifecycle/input tests, 6
+  forest renderer tests, 17 Chomper rules tests and 7 auxiliary-art contracts.
+  Baseline: 160 tests excluding worktrees. `vitest.config.ts`
+  now restricts discovery to `src/**/*.test.ts`; the old 280 total is not a
+  current unique-test count. Three selected regressions fail against base HEAD.
+- `check`, `test`, `build`, `git diff --check` pass. Chrome smoke at **360×640,
+  DPR 2 (emulated)**: all three stages, key repeat, restart from pause/help/closing,
+  no page errors or HTTP failures, no forest image requests at initial entry.
+  This is NOT a physical-device or human playability pass. The two existing
+  reward-contact sequences were rendered in-browser using a completion fixture.
+- Notes/platforms now use retained, code-native artwork: connected musical
+  silhouettes and a clear flat support edge. The two existing rewards are a
+  drawn clef medallion and engraved lunar shard, without a symbol-font dependency.
+- **Chomper was explicitly authorized as a fourth scene** by Raúl this turn.
+  Its isolated fixed-step model implements two alternating telegraphed attacks,
+  jumps, three lives, six recovery notes, pause, retry, home and neutral victory.
+  These are provisional tuning choices, not inferred notes from Mateo's drawing.
+- The scene is a **DEV-only playable preview**: Black Forest's Seguir reaches it;
+  `/?encounter=chomper` is a direct QA entry. Production retains its prior final
+  stage until art/encounter review. Boss art loads from art-lab only in DEV.
+  Browser integration reached victory with 6 notes / 3 lives, defeat, retry,
+  paused clock and the forest-to-boss route, with no reported errors.
+- After a temporary tool usage block, the full browser pass was repeated:
+  emission paths and normal guarded continuation render/run without errors;
+  3 low + 3 high warning events, 6 pickup events and 1 victory event were counted,
+  all gesture-unlocked. This does not replace listening on real hardware.
+- Production build contains no Chomper scene chunk or art-lab URL. The boss is
+  not silently enabled or shipped with an unavailable local image.
+- Forest-floor texture is a candidate only, not loaded by normal gameplay.
+  Chomper's corrected arena matte is a candidate used by the DEV preview only.
+  Both await subjective selection; do not promote rejected fake-alpha outputs.
+- Existing three-stage physics, hitboxes, collisions and difficulty are unchanged.
+  AST comparison: all 66 unaffected runner members identical to HEAD; only four
+  art methods changed and one unused painting helper removed. Existing runtime
+  image bytes and Mateo's source images are unchanged. No new ingredient/ending.
+- Next: review the candidates, develop the boss's separate animated art parts,
+  and test on a real phone; then promote accepted art and enable the fourth scene.
+
+Evidence and paths: [September polish](polish-2026-09-05.md).
+
+## Historical snapshot — 2026-08-09 (superseded, retained for provenance)
+
+**Everything below is historical, not a claim about the current checkout.**
+Old HEADs, uncommitted counts, texture names, test totals and hardware results
+must not override the verified snapshot above. Some later August work was
+already committed before the September preflight.
+
+### Batch `da731e0..` on `visual/world-01-carlitos-drive`
 **The branch is five commits ahead of the remote and none of them are pushed:** the four-commit functional batch below, plus the documentation commit `03382fc`, which is `HEAD`.
 
 The functional batch is four commits. All of `npm run check` / `npm run build` / `npm test` (**93 tests at the time**; 114 now, after the eye/yawn slice) green at each one.

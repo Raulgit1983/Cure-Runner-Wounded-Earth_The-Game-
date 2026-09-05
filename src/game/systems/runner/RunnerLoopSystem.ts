@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { createCollectibleArt, createPlatformArt } from './entityArt';
 
 import { journeyStages, type JourneyStageDefinition } from '@/game/content/journeyStages';
 import { runnerConfig } from '@/game/content/runnerConfig';
@@ -512,57 +513,8 @@ export class RunnerLoopSystem {
 
     const primary: PaintableShape[] = [];
     const secondary: PaintableShape[] = [];
-
-    if (variant === 'spark') {
-      primary.push(
-        this.scene.add.ellipse(-8, 9, 12, 16, mood.sparkColor, 1).setRotation(-0.58),
-        this.scene.add.ellipse(8, 13, 12, 16, mood.sparkColor, 1).setRotation(-0.58),
-        this.scene.add.rectangle(-1, -4, 4, 30, mood.sparkColor, 1).setRotation(-0.08),
-        this.scene.add.rectangle(14, 1, 4, 30, mood.sparkColor, 1).setRotation(-0.05),
-        this.scene.add.rectangle(7, -18, 24, 5, mood.sparkColor, 1).setRotation(0.14),
-        this.scene.add.triangle(-16, 18, -6, 3, 0, -10, 5, 4, mood.sparkColor, 1).setRotation(-0.42)
-      );
-      secondary.push(
-        this.scene.add.ellipse(-8, 9, 6, 8, 0xffffff, 1).setRotation(-0.58),
-        this.scene.add.ellipse(8, 13, 6, 8, 0xffffff, 1).setRotation(-0.58),
-        this.scene.add.rectangle(8, -19, 10, 2, 0xffffff, 1).setRotation(0.14),
-        this.scene.add.ellipse(13, -24, 4, 4, 0xffffff, 1)
-      );
-    }
-
-    if (variant === 'note') {
-      primary.push(
-        this.scene.add.ellipse(-5, 10, 14, 18, mood.sparkColor, 1).setRotation(-0.54),
-        this.scene.add.rectangle(9, -5, 4, 36, mood.sparkColor, 1).setRotation(-0.04),
-        this.scene.add.rectangle(15, -24, 12, 5, mood.sparkColor, 1).setRotation(0.18),
-        this.scene.add.triangle(17, -16, -8, 6, 0, -12, 7, 0, mood.sparkColor, 1).setRotation(0.22),
-        this.scene.add.ellipse(1, 22, 11, 5, mood.sparkColor, 1).setRotation(0.12)
-      );
-      secondary.push(
-        this.scene.add.ellipse(-5, 10, 7, 9, 0xffffff, 1).setRotation(-0.54),
-        this.scene.add.rectangle(15, -24, 6, 2, 0xffffff, 1).setRotation(0.18),
-        this.scene.add.ellipse(19, -30, 3, 3, 0xffffff, 1)
-      );
-    }
-
-    if (variant === 'brush') {
-      primary.push(
-        this.scene.add.ellipse(-6, 12, 13, 17, mood.sparkColor, 1).setRotation(-0.52),
-        this.scene.add.ellipse(8, 16, 13, 17, mood.sparkColor, 1).setRotation(-0.52),
-        this.scene.add.rectangle(11, -3, 4, 34, mood.sparkColor, 1).setRotation(-0.04),
-        this.scene.add.rectangle(16, -21, 16, 5, mood.sparkColor, 1).setRotation(0.22),
-        this.scene.add.triangle(19, -13, -8, 6, 0, -11, 7, 0, mood.sparkColor, 1).setRotation(0.18),
-        this.scene.add.triangle(-16, 20, -6, 2, 0, -9, 4, 4, mood.sparkColor, 1).setRotation(-0.34)
-      );
-      secondary.push(
-        this.scene.add.ellipse(-6, 12, 6, 8, 0xffffff, 1).setRotation(-0.52),
-        this.scene.add.ellipse(8, 16, 6, 8, 0xffffff, 1).setRotation(-0.52),
-        this.scene.add.rectangle(16, -21, 8, 2, 0xffffff, 1).setRotation(0.22),
-        this.scene.add.ellipse(22, -28, 3, 3, 0xffffff, 1)
-      );
-    }
-
-    container.add([halo, ...primary, ...secondary]);
+    const art = createCollectibleArt(this.scene, variant, this.stage.traits.paletteVariant);
+    container.add([halo, art]);
 
     return {
       label: definition.label,
@@ -725,22 +677,9 @@ export class RunnerLoopSystem {
       .ellipse(0, 2, width * 0.78, 22, mood.sparkColor, this.stage.traits.paletteVariant === 'cool' ? 0.1 : 0.06)
       .setBlendMode(Phaser.BlendModes.ADD);
 
-    const primary: PaintableShape[] = [
-      this.scene.add.ellipse(0, 18, width * 0.72, 10, 0x0a0d12, 0.18),
-      this.scene.add.rectangle(0, 0, width - 26, 14, 0x23323a, 1),
-      this.scene.add.ellipse(-(width * 0.5) + 13, 0, 26, 14, 0x2d3d47, 1),
-      this.scene.add.ellipse((width * 0.5) - 13, 0, 26, 14, 0x2d3d47, 1),
-      this.scene.add.rectangle(0, -4, width - 54, 4, 0xeef7da, 0.9),
-      this.scene.add.rectangle(-(width * 0.24), 12, 8, 12, 0x1a252b, 1),
-      this.scene.add.rectangle(width * 0.2, 11, 8, 10, 0x1a252b, 1)
-    ];
-    const secondary: PaintableShape[] = [
-      this.scene.add.rectangle(0, 2, width - 42, 3, 0xf8fff0, 0.56),
-      this.scene.add.ellipse(-(width * 0.28), -2, 10, 4, 0xffffff, 0.48),
-      this.scene.add.ellipse(width * 0.22, -1, 8, 4, 0xffffff, 0.42)
-    ];
-
-    container.add([halo, ...primary, ...secondary]);
+    const primary: PaintableShape[] = [];
+    const secondary: PaintableShape[] = [];
+    container.add([halo, createPlatformArt(this.scene, width, this.stage.traits.paletteVariant)]);
 
     return {
       label: variant,
@@ -1010,123 +949,16 @@ export class RunnerLoopSystem {
 
   private paintCollectible(entity: RunnerEntity, mood: MoodSnapshot, time: number) {
     const hoverScale = 1 + Math.sin(time * 0.005 + entity.worldX * 0.018) * 0.06;
-    // Palette family is declared by the stage, not inferred from its backdrop:
-    // a third world must choose, not inherit Wounded Planet through an else.
-    const isMoonlight = this.stage.traits.paletteVariant === 'cool';
-    const shellColor = isMoonlight ? 0xfffaee : 0xf0e7d7;
-    const shellWarm = isMoonlight ? 0xf3e0a7 : 0xe2d3b3;
-    const shellStroke = isMoonlight ? 0x726042 : 0x645d4f;
-    const mossAccent = isMoonlight ? 0xffefc7 : 0xc7d8ab;
-    const highlightColor = isMoonlight ? 0xffffff : 0xfff8ea;
-    const accentColor = isMoonlight ? 0xffdf86 : mood.sparkColor;
-    const accentEdgeColor = isMoonlight ? 0x7f6424 : mood.sparkEdgeColor;
-    const applyPaint = (
-      shape: PaintableShape | undefined,
-      fillColor: number,
-      fillAlpha: number,
-      strokeColor: number,
-      strokeAlpha: number
-    ) => {
-      shape?.setFillStyle(fillColor, fillAlpha).setStrokeStyle(2, strokeColor, strokeAlpha);
-    };
-
-    entity.container.setScale((hoverScale + this.chainBurst * (isMoonlight ? 0.05 : 0.032)) * 1.08);
-    entity.halo?.setFillStyle(
-      isMoonlight ? 0xffe6a6 : mood.sparkColor,
-      (isMoonlight ? 0.22 : mood.sparkHaloAlpha * 0.42) + this.chainBurst * (isMoonlight ? 0.06 : 0.028)
-    );
-
-    if (entity.variant === 'spark') {
-      applyPaint(entity.primary[0], shellWarm, 0.98, shellStroke, 0.26);
-      applyPaint(entity.primary[1], shellWarm, 0.98, shellStroke, 0.26);
-      applyPaint(entity.primary[2], shellColor, 0.98, shellStroke, 0.24);
-      applyPaint(entity.primary[3], shellColor, 0.98, shellStroke, 0.24);
-      applyPaint(entity.primary[4], mossAccent, 0.94, shellStroke, 0.18);
-      applyPaint(entity.primary[5], shellColor, 0.96, shellStroke, 0.2);
-      applyPaint(entity.secondary[0], accentColor, 0.96, accentEdgeColor, 0.22);
-      applyPaint(entity.secondary[1], accentColor, 0.96, accentEdgeColor, 0.22);
-      applyPaint(entity.secondary[2], highlightColor, 0.92, shellStroke, 0.08);
-      applyPaint(entity.secondary[3], highlightColor, 0.78, shellStroke, 0.04);
-      return;
-    }
-
-    if (entity.variant === 'note') {
-      applyPaint(entity.primary[0], shellWarm, 0.98, shellStroke, 0.26);
-      applyPaint(entity.primary[1], shellColor, 0.98, shellStroke, 0.24);
-      applyPaint(entity.primary[2], mossAccent, 0.94, shellStroke, 0.16);
-      applyPaint(entity.primary[3], shellColor, 0.96, shellStroke, 0.18);
-      applyPaint(entity.primary[4], shellWarm, 0.92, shellStroke, 0.12);
-      applyPaint(entity.secondary[0], accentColor, 0.96, accentEdgeColor, 0.22);
-      applyPaint(entity.secondary[1], highlightColor, 0.92, shellStroke, 0.08);
-      applyPaint(entity.secondary[2], highlightColor, 0.76, shellStroke, 0.04);
-      return;
-    }
-
-    if (entity.variant === 'brush') {
-      applyPaint(entity.primary[0], shellWarm, 0.98, shellStroke, 0.26);
-      applyPaint(entity.primary[1], shellWarm, 0.98, shellStroke, 0.26);
-      applyPaint(entity.primary[2], shellColor, 0.98, shellStroke, 0.24);
-      applyPaint(entity.primary[3], mossAccent, 0.94, shellStroke, 0.16);
-      applyPaint(entity.primary[4], shellColor, 0.96, shellStroke, 0.18);
-      applyPaint(entity.primary[5], shellWarm, 0.92, shellStroke, 0.16);
-      applyPaint(entity.secondary[0], accentColor, 0.96, accentEdgeColor, 0.22);
-      applyPaint(entity.secondary[1], accentColor, 0.96, accentEdgeColor, 0.22);
-      applyPaint(entity.secondary[2], highlightColor, 0.92, shellStroke, 0.08);
-      applyPaint(entity.secondary[3], highlightColor, 0.76, shellStroke, 0.04);
-      return;
-    }
-
-    this.paintShapes(entity.primary, mood.sparkColor, 0.98, mood.sparkEdgeColor, 0.3);
-    this.paintShapes(entity.secondary, highlightColor, 0.96, mood.sparkEdgeColor, 0.1);
+    const cool = this.stage.traits.paletteVariant === 'cool';
+    entity.container.setScale((hoverScale + this.chainBurst * (cool ? 0.05 : 0.032)) * 1.08);
+    // The warm, connected silhouette does the work; the halo is just a whisper.
+    entity.halo?.setFillStyle(0xf6d58c, mood.sparkHaloAlpha * 0.18 + this.chainBurst * 0.02);
   }
 
-  private paintPlatform(entity: RunnerEntity, mood: MoodSnapshot, time: number) {
-    const isMoonlight = this.stage.traits.paletteVariant === 'cool';
-    const shimmer = Math.sin(time * 0.0024 + entity.worldX * 0.009) * 0.04;
-    const applyPaint = (
-      shape: PaintableShape | undefined,
-      fillColor: number,
-      fillAlpha: number,
-      strokeColor: number,
-      strokeAlpha: number,
-      strokeWidth = 2
-    ) => {
-      shape
-        ?.setAlpha(1)
-        .setFillStyle(fillColor, fillAlpha)
-        .setStrokeStyle(strokeWidth, strokeColor, strokeAlpha);
-    };
-
-    entity.container.setRotation(0).setScale(1 + shimmer * 0.04, 1);
-    entity.halo?.setFillStyle(
-      isMoonlight ? 0xcff4ff : mood.sparkColor,
-      (isMoonlight ? 0.12 : 0.08) + Math.abs(shimmer) * 0.05
-    );
-
-    if (isMoonlight) {
-      applyPaint(entity.primary[0], 0x07101b, 0.22, 0x02050a, 0.12, 1);
-      applyPaint(entity.primary[1], 0x5b7195, 0.98, 0x22314c, 0.72, 3);
-      applyPaint(entity.primary[2], 0x6f8bb0, 0.98, 0x2d4060, 0.72, 3);
-      applyPaint(entity.primary[3], 0x6f8bb0, 0.98, 0x2d4060, 0.72, 3);
-      applyPaint(entity.primary[4], 0xf2fbff, 0.84, 0xc9f3ff, 0.16, 1);
-      applyPaint(entity.primary[5], 0x25354d, 0.94, 0x101a26, 0.42, 2);
-      applyPaint(entity.primary[6], 0x25354d, 0.94, 0x101a26, 0.42, 2);
-      applyPaint(entity.secondary[0], 0xffffff, 0.36, 0xeafaff, 0.12, 1);
-      applyPaint(entity.secondary[1], 0xffffff, 0.54, 0xeafaff, 0.12, 1);
-      applyPaint(entity.secondary[2], 0xffffff, 0.48, 0xeafaff, 0.12, 1);
-      return;
-    }
-
-    applyPaint(entity.primary[0], 0x0a0e11, 0.18, 0x040608, 0.1, 1);
-    applyPaint(entity.primary[1], 0x365447, 0.98, 0x15251f, 0.68, 3);
-    applyPaint(entity.primary[2], 0x45685a, 0.98, 0x1b2e27, 0.68, 3);
-    applyPaint(entity.primary[3], 0x45685a, 0.98, 0x1b2e27, 0.68, 3);
-    applyPaint(entity.primary[4], 0xe8f3c8, 0.84, 0xbfd29f, 0.16, 1);
-    applyPaint(entity.primary[5], 0x223730, 0.94, 0x0f1714, 0.42, 2);
-    applyPaint(entity.primary[6], 0x223730, 0.94, 0x0f1714, 0.42, 2);
-    applyPaint(entity.secondary[0], 0xffffff, 0.28, 0xe8f6d6, 0.12, 1);
-    applyPaint(entity.secondary[1], 0xf6ffd8, 0.42, 0xe8f6d6, 0.12, 1);
-    applyPaint(entity.secondary[2], 0xf6ffd8, 0.38, 0xe8f6d6, 0.12, 1);
+  private paintPlatform(entity: RunnerEntity, _mood: MoodSnapshot, _time: number) {
+    // Stable support edge: no visual stretching away from the real support.
+    entity.container.setRotation(0).setScale(1);
+    entity.halo?.setFillStyle(0xa5d6ca, 0.025);
   }
 
   private paintHazard(entity: RunnerEntity, mood: MoodSnapshot, time: number) {
@@ -1228,18 +1060,6 @@ export class RunnerLoopSystem {
     applyPaint(entity.secondary[1], 0xff8478, 0.92, 0x70221e, 0.24, 2);
     applyPaint(entity.secondary[2], 0xd6d4ce, 0.72, 0x655f57, 0.12, 1);
     applyPaint(entity.secondary[3], 0xf0e7d8, 0.7, 0x655f57, 0.1, 1);
-  }
-
-  private paintShapes(
-    shapes: PaintableShape[],
-    fillColor: number,
-    fillAlpha: number,
-    strokeColor: number,
-    strokeAlpha: number
-  ) {
-    shapes.forEach((shape) => {
-      shape.setFillStyle(fillColor, fillAlpha).setStrokeStyle(2, strokeColor, strokeAlpha);
-    });
   }
 
   private getStaggerAmount() {

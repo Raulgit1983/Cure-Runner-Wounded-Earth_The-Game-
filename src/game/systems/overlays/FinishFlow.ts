@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { createRewardArt } from './rewardArt';
 
 import { journeyConfig } from '@/game/content/journeyConfig';
 import type { JourneyStageDefinition, JourneyStageKey } from '@/game/content/journeyStages';
@@ -72,6 +73,8 @@ export interface FinishFlowHost {
   isReturnHomeQueued(): boolean;
   /** fadeOut + sessionState.restartRun() + scene.start(next) — a scene-level decision. */
   advanceToStage(nextStageKey: JourneyStageKey): void;
+  /** Lazy scene import; false keeps the continuation button usable after a load failure. */
+  advanceToEncounter(encounter: 'chomper'): Promise<boolean>;
   /** fadeOut + sessionState.restartRun() + scene.restart(current) — a scene-level decision. */
   replayCurrentStage(): void;
   returnToStart(): void;
@@ -416,6 +419,14 @@ export class FinishFlow {
       return;
     }
 
+    if (import.meta.env.DEV && this.stage.nextEncounter) {
+      this.continueResolved = true;
+      void this.host.advanceToEncounter(this.stage.nextEncounter).then((started) => {
+        if (!started) this.continueResolved = false;
+      });
+      return;
+    }
+
     this.continueResolved = true;
     this.scene.children.bringToTop(this.continueStage);
   }
@@ -456,7 +467,7 @@ export class FinishFlow {
     // stage this is. They used to ride on the moonlight flag, which silently
     // told the player "no hay más niveles" the moment moonlight gained a
     // successor.
-    const isFinalStage = !this.stage.nextStage;
+    const isFinalStage = !this.stage.nextStage && !(import.meta.env.DEV && this.stage.nextEncounter);
     const title = this.scene.add
       .text(0, -48, copy.finishTitle, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
@@ -534,7 +545,7 @@ export class FinishFlow {
     );
 
     // Final level: replay + home instead of a misleading continuation CTA.
-    if (!this.stage.nextStage) {
+    if (isFinalStage) {
       // The unused button must be destroyed: createPanelButton() adds it to the
       // scene at (0,0), so leaving it unparented strands a stray button in the
       // top-left corner for the whole run.
@@ -677,171 +688,12 @@ export class FinishFlow {
   }
 
   private createWoundedIngredient(x: number, y: number) {
-    const trebleGlyph = '\uD834\uDD1E';
-    const halo = this.scene.add
-      .ellipse(0, 0, 104, 104, 0xeaffc9, 0.18)
-      .setBlendMode(Phaser.BlendModes.ADD);
-    const haloCore = this.scene.add
-      .ellipse(0, 2, 72, 72, 0xfaffef, 0.22)
-      .setBlendMode(Phaser.BlendModes.ADD);
-    const shellGlow = this.scene.add
-      .ellipse(0, 4, 76, 88, 0xdff7d8, 0.14)
-      .setBlendMode(Phaser.BlendModes.ADD);
-    const paperCore = this.scene.add
-      .ellipse(0, 4, 58, 74, 0xf8fff1, 0.98)
-      .setStrokeStyle(3, 0x6b8273, 0.18);
-    const frame = this.scene.add.graphics();
-    frame.lineStyle(2, 0x6a7d72, 0.18);
-    frame.strokeEllipse(0, 2, 64, 82);
-    frame.lineStyle(2, 0xf6fff3, 0.14);
-    frame.strokeEllipse(0, 2, 40, 56);
-    const clefAura = this.scene.add
-      .text(2, -2, trebleGlyph, {
-        fontFamily: '"Noto Sans Symbols 2", "Apple Symbols", "Segoe UI Symbol", Georgia, serif',
-        fontSize: '96px',
-        color: '#c8ffc9'
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setAlpha(0.22);
-    const clefShadow = this.scene.add
-      .text(4, 3, trebleGlyph, {
-        fontFamily: '"Noto Sans Symbols 2", "Apple Symbols", "Segoe UI Symbol", Georgia, serif',
-        fontSize: '88px',
-        color: '#0f1517'
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setAlpha(0.34);
-    const clef = this.scene.add
-      .text(0, -2, trebleGlyph, {
-        fontFamily: '"Noto Sans Symbols 2", "Apple Symbols", "Segoe UI Symbol", Georgia, serif',
-        fontSize: '90px',
-        color: '#ffffff',
-        stroke: '#5d7464',
-        strokeThickness: 3
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 2, '#0a1015', 5, false, true);
-
-    const orbitTop = this.scene.add.ellipse(6, -50, 9, 9, 0xf8ffec, 0.94).setStrokeStyle(2, 0x66796c, 0.18);
-    const heartCore = this.scene.add.ellipse(-1, 2, 16, 16, 0x97ffae, 0.94).setStrokeStyle(2, 0x466145, 0.26);
-    const heartSpark = this.scene.add.ellipse(-1, 2, 7, 7, 0xfffcf0, 0.96);
-    const lowerSeed = this.scene.add.ellipse(-2, 21, 8, 8, 0xc8e7ab, 0.86).setStrokeStyle(2, 0x4d6242, 0.18);
-    const sideLeafLeft = this.scene.add
-      .triangle(-15, -10, -7, 7, 0, -10, 8, 8, 0xe4f2cf, 0.8)
-      .setRotation(-0.58)
-      .setStrokeStyle(2, 0x586b5e, 0.14);
-    const sideLeafRight = this.scene.add
-      .triangle(16, 12, -8, 7, 0, -10, 7, 8, 0xe4f2cf, 0.74)
-      .setRotation(0.48)
-      .setStrokeStyle(2, 0x586b5e, 0.14);
-    const sparkleA = this.scene.add.ellipse(24, -16, 4, 4, 0xfff9e8, 0.5);
-    const sparkleB = this.scene.add.ellipse(-22, -24, 3, 3, 0xfff9e8, 0.36);
-    const sparkleC = this.scene.add.ellipse(-20, 30, 3, 3, 0xf4ffcc, 0.32);
-
-    return this.scene.add
-      .container(x, y, [
-        halo,
-        haloCore,
-        shellGlow,
-        paperCore,
-        frame,
-        clefAura,
-        clefShadow,
-        clef,
-        orbitTop,
-        heartCore,
-        heartSpark,
-        lowerSeed,
-        sideLeafLeft,
-        sideLeafRight,
-        sparkleA,
-        sparkleB,
-        sparkleC
-      ])
-      .setDepth(6.35)
-      .setAlpha(0);
+    return this.scene.add.container(x, y, [createRewardArt(this.scene, 'nota-sol')])
+      .setDepth(6.35).setAlpha(0);
   }
 
   private createMoonlightIngredient(x: number, y: number) {
-    const halo = this.scene.add
-      .ellipse(0, 0, 112, 112, 0xd7f5ff, 0.18)
-      .setBlendMode(Phaser.BlendModes.ADD);
-    const haloCore = this.scene.add
-      .ellipse(0, 0, 74, 74, 0xf7fdff, 0.18)
-      .setBlendMode(Phaser.BlendModes.ADD);
-    const glassAura = this.scene.add
-      .ellipse(0, 4, 78, 94, 0xbbe9ff, 0.16)
-      .setBlendMode(Phaser.BlendModes.ADD);
-    const outerRing = this.scene.add
-      .ellipse(0, 4, 62, 78, 0xf6fdff, 0.12)
-      .setStrokeStyle(3, 0x69859a, 0.2);
-
-    const prismFrame = this.scene.add.graphics();
-    const prismPoints = [
-      new Phaser.Geom.Point(0, -36),
-      new Phaser.Geom.Point(28, -4),
-      new Phaser.Geom.Point(0, 38),
-      new Phaser.Geom.Point(-28, -4)
-    ];
-    prismFrame.fillStyle(0xf7fdff, 0.94);
-    prismFrame.fillPoints(prismPoints, true);
-    prismFrame.lineStyle(3, 0x69859a, 0.22);
-    prismFrame.strokePoints(prismPoints, true, true);
-    prismFrame.lineStyle(2, 0xffffff, 0.16);
-    prismFrame.strokeLineShape(new Phaser.Geom.Line(0, -34, 0, 30));
-    prismFrame.strokeLineShape(new Phaser.Geom.Line(-20, 0, 0, -34));
-    prismFrame.strokeLineShape(new Phaser.Geom.Line(20, 0, 0, -34));
-    prismFrame.strokeLineShape(new Phaser.Geom.Line(-20, 0, 0, 30));
-    prismFrame.strokeLineShape(new Phaser.Geom.Line(20, 0, 0, 30));
-
-    const facetLeft = this.scene.add
-      .triangle(-8, 1, -15, -7, 0, -30, -2, 22, 0xd7f4ff, 0.72)
-      .setStrokeStyle(2, 0x6f8ca0, 0.18);
-    const facetRight = this.scene.add
-      .triangle(8, -1, 2, -30, 15, -7, 2, 22, 0xe6fbff, 0.68)
-      .setStrokeStyle(2, 0x6f8ca0, 0.18);
-    const facetBase = this.scene.add
-      .triangle(0, 18, -14, -3, 0, 18, 14, -3, 0xb8dbff, 0.74)
-      .setStrokeStyle(2, 0x6f8ca0, 0.14);
-
-    const crescentGlow = this.scene.add
-      .ellipse(-14, -18, 30, 30, 0xf7fdff, 0.92)
-      .setStrokeStyle(2, 0xa2c8d8, 0.2);
-    const crescentCut = this.scene.add.ellipse(-8, -18, 25, 25, 0x0c1320, 0.82);
-    const prismStarGlow = this.scene.add
-      .ellipse(20, -22, 22, 22, 0xf7fdff, 0.12)
-      .setBlendMode(Phaser.BlendModes.ADD);
-    const prismStar = this.scene.add.star(20, -22, 4, 3, 10, 0xffffff, 0.92).setAngle(45);
-    const lowerSeed = this.scene.add
-      .ellipse(1, 22, 10, 16, 0xbfe9ff, 0.88)
-      .setStrokeStyle(2, 0x53718a, 0.18);
-    const shimmerA = this.scene.add.ellipse(26, 18, 4, 4, 0xf8ffff, 0.46);
-    const shimmerB = this.scene.add.ellipse(-24, 28, 3, 3, 0xe8fbff, 0.34);
-    const shimmerC = this.scene.add.ellipse(-20, -28, 3, 3, 0xf8ffff, 0.36);
-
-    return this.scene.add
-      .container(x, y, [
-        halo,
-        haloCore,
-        glassAura,
-        outerRing,
-        prismFrame,
-        facetLeft,
-        facetRight,
-        facetBase,
-        crescentGlow,
-        crescentCut,
-        prismStarGlow,
-        prismStar,
-        lowerSeed,
-        shimmerA,
-        shimmerB,
-        shimmerC
-      ])
-      .setDepth(6.35)
-      .setAlpha(0);
+    return this.scene.add.container(x, y, [createRewardArt(this.scene, 'moonlight-shard')])
+      .setDepth(6.35).setAlpha(0);
   }
 }

@@ -1,13 +1,30 @@
 ---
 tags: [cure-runner, mateo-game, memory, design, level-03]
-updated: 2026-08-09
+updated: 2026-09-05
 ---
 
 # Level 3 — The Black Forest (built)
 
 > To see this in Obsidian, the repo/`docs` folder must be opened or mirrored into the Obsidian vault. There is no assumed external sync; `docs/memory/` is the stable layer.
 
-## Current decision (2026-08-09) — supersedes the 2026-06-21 gate below
+## Current override — 2026-09-05
+
+Black Forest remains the third runner stage. It now has a DEV-only continuation
+to the explicitly authorized standalone Chomper encounter; production retains
+its prior ending until review. See [September polish](polish-2026-09-05.md).
+Ingredient and narrative closure remain undecided; the old boss-start gate below
+does not apply to Raúl's new mandate.
+
+Runtime is the approved **colour-v4** plate + iris + three mouth patches, not
+the earlier alpha matte described below. Do not use `setTintFill`. Keep the
+assembly opaque; a final sky-coloured veil grades the already-composed image.
+The current iris limit is ±8/±4 source px, not the older ±7/±3.5 figure.
+The floor texture is an art-lab candidate, not integrated runtime art.
+
+Everything below is historical: its asset names, local/uncommitted claims,
+parallax/alpha treatment and open-task list must not override this section.
+
+## Historical decision (2026-08-09) — superseded by the current override
 **Level 3 is The Black Forest, and it is built.** Raúl's decision replaced the
 earlier "do not build yet" gate and the "Pulse Canyon" placeholder. Landed in
 `feat(stage): add The Black Forest vertical slice`.

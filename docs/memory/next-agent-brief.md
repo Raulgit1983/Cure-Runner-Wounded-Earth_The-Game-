@@ -1,6 +1,6 @@
 ---
 tags: [cure-runner, mateo-game, memory, ai-agent]
-updated: 2026-08-09
+updated: 2026-09-05
 ---
 
 # Next Agent Brief
@@ -8,23 +8,32 @@ updated: 2026-08-09
 Read this before touching the repo. Pair with [project-current-state.md](project-current-state.md).
 
 ## Status assumptions
-- Repo compiles: `npm run check`, `npm run build` and `npm test` (**280 tests**) are green as of 2026-08-09.
+- Codex/Astra now owns implementation too; **do not invoke Claude** unless Raúl
+  explicitly re-enables it. September polish was saved locally after base
+  `e1480b0`; read the exact current HEAD rather than trusting an abbreviated hash.
+- `npm run check`, `npm run build` and `npm test` (**199 tests / 17 files**) pass
+  on the September working tree. Discovery is scoped to `src/`, excluding task
+  worktrees. The old 280 figure was not a reliable unique-test count.
 - **All three stages are now image-backed by Mateo's scanned drawings.** Wounded
   Planet and Moonlight Mountain share the plan-driven `ImageBackdropRenderer`;
   Black Forest keeps its own renderer for the eye, the yawn and the parallax.
   The Graphics-only `BackdropRenderer` survives ONLY as the not-loaded fallback.
-- **Deployed to GitHub Pages on 2026-08-09 on Raúl's explicit instruction**, by
+- **Historical record:** deployed to GitHub Pages on 2026-08-09 on Raúl's explicit instruction, by
   merging `visual/world-01-carlitos-drive` into `main`. Before that the live
-  site was 33 commits behind. This build has still **never run on real hardware**
-  — everything is verified in headless Chrome at a 390x844 / DPR 2 viewport.
+  site was 33 commits behind. Production is not reverified this turn. The
+  September slice has a 360x640 / DPR 2 Chrome pass, **not a physical-device pass**.
 - `dist/` is gitignored; do not commit build output. `art-lab/` is gitignored too
   (~106 MB of art working material, kept on disk like `Imagenes/`); the accepted
   output of an art pass is copied into `src/assets/worlds/` and committed there.
 
 ## Architecture facts (do not re-derive)
 - Scenes orchestrate; rules live in `systems/`; values in `content/`; persistence behind `services/`.
-- Stage chain: `wounded-planet → moonlight-mountain → black-forest → end`. Level layer is still **metadata only** — `LevelDefinition` resolves the initial stage and nothing else.
-- Backdrops implement [StageBackdrop](../../src/game/systems/backdrop/StageBackdrop.ts). `BackdropRenderer` paints stages 1-2 with Graphics; `BlackForestBackdropRenderer` composes Mateo's scanned sheet with parallax.
+- Runner stage chain: `wounded-planet → moonlight-mountain → black-forest`.
+  In DEV only, forest's `nextEncounter: 'chomper'` opens a separate lazy scene;
+  production still ends at forest pending candidate review. Chomper is not a
+  fourth `JourneyStageKey` and does not inherit runner physics/phrase pools.
+  Level layer is still **metadata only** — `LevelDefinition` resolves the initial stage.
+- Backdrops implement [StageBackdrop](../../src/game/systems/backdrop/StageBackdrop.ts). `ImageBackdropRenderer` paints stages 1-2 with source art; the Graphics-only renderer is fallback. `BlackForestBackdropRenderer` composes the colour-v4 sheet with parallax.
 - Per-stage differences live in `JourneyStageTraits`, **not** in `backdropKind === '<stage>'` checks. Those were all removed on purpose.
 - Character poses/animation live in `systems/character/`. `JourneyScene` owns position, origin, depth, alpha, scale and rotation; the animator only picks the frame.
 - Firebase = no-op stub, unimported. Audio = procedural. No PWA.
@@ -54,6 +63,9 @@ Read this before touching the repo. Pair with [project-current-state.md](project
    Raúl to run `gh auth refresh -s workflow`.
 
 ## Backdrop treatment (added 2026-08-09, do not "fix" back)
+- September correction: do not fade Black Forest's container. Phaser applies
+  that alpha per child, exposing overlaps. Keep plate/iris/mouth fully opaque
+  and put the atmospheric veil last inside the same container.
 - The readability layer is a **vertical grade, not a flat veil**: weakest at the
   top of the screen, full strength across the play band. That is deliberate —
   the upper art wants to be left alone and the lane the player reads wants to be
@@ -71,17 +83,25 @@ Read this before touching the repo. Pair with [project-current-state.md](project
   second half of every run. `blackForestArt.test.ts` bounds it.
 
 ## Highest-priority next slices
-1. **Real-phone pass.** Everything so far was verified in headless Chrome at a
-   390x844 / DPR 2 viewport. Three stages, three characters and three image
-   backdrops have never run on real hardware — and the build is now public.
-   This is the biggest open risk.
-2. **Black Forest still has dead space.** The plate occupies y 87..383 of a 640
+1. **Real-phone pass.** September emulation is 360x640 / DPR 2. The temporary
+   tool usage block was resolved on continuation; `qa-boss.mjs`, `qa-dev.mjs`
+   and `qa-art.mjs` passed against the current tree. Boss warning/pickup/victory
+   audio events are counted, but not a perceptual listening test. Never
+   describe emulation as hardware acceptance.
+2. **Black Forest floor candidate awaits selection.** The plate occupies y 87..383 of a 640
    tall canvas, so the whole play band is flat sky with no material, while
    stages 1-2 have Mateo's paper texture edge to edge. The feather softened the
    seams; it did not fill the void. Re-framing the band is an art-direction call
-   and belongs to Codex/Raúl, not to a code slice.
-3. **Black Forest creative decisions (Raúl's).** Ingredient, closing message and the Chomper boss all ship as explicit `[PENDIENTE DE RAÚL]` placeholders — and they are now live on the public build.
-4. ~~Eye / mouth re-export decision~~ — **done 2026-08-09.** Both behaviours are wired off an approved art pass. Do not "fix" them back: the eye must rest at offset (0,0) and stay inside ±7/±3.5 source px, and the mouth's rest phase is closed. See `BlackForestBackdropRenderer`'s class doc.
+   and belongs to Codex/Raúl, not to a code slice. A versioned, low-contrast
+   material candidate and in-game preview now live in
+   `art-lab/2026-09-05-forest-polish/`; they are not runtime assets. See
+   [polish-2026-09-05.md](polish-2026-09-05.md).
+3. **Chomper candidate/encounter review.** Raúl authorized building the boss
+   after the three stages. Rules and a DEV-only scene now exist, with six-note
+   victory, two attacks and pause/retry. Do not restart the work or call it
+   production-ready: candidate approval, full art rig and human balance review
+   remain. Black Forest ingredient and narrative closing are still undecided.
+4. ~~Eye / mouth re-export decision~~ — **done 2026-08-09.** Both behaviours are wired off an approved art pass. Do not "fix" them back: the eye rests at offset (0,0), bounded by `IRIS_GAZE_MAX_X/Y` (currently ±8/±4 source px), and the mouth's rest phase is closed. See `blackForestArt.ts`.
 5. Expand `LevelDefinition` so it actually drives tuning, phrase pools and mechanic flags.
 
 ## Validation commands (run before closing any slice)
@@ -95,10 +115,12 @@ Plus a browser pass on `localhost:5174` at a 360x640 viewport if behaviour could
 
 ## Forbidden changes
 - No push, deploy or remote change without explicit human permission.
-- No broad rewrite. No editing physics/movement/collision in [RunnerLoopSystem.ts](../../src/game/systems/runner/RunnerLoopSystem.ts).
+- No broad rewrite. Preserve physics/movement/collision in [RunnerLoopSystem.ts](../../src/game/systems/runner/RunnerLoopSystem.ts).
+  Its note/platform drawing methods are within the explicitly authorized art pass.
 - No tuning/copy/visual changes unless that IS the slice's scope.
 - Do not delete or overwrite old assets. The v1 Devilz art and `Imagenes/files/` originals stay.
-- Do not invent an ingredient, boss, mechanic or ending that Raúl has not decided. Mark it `[PENDIENTE DE RAÚL]` instead.
+- Do not invent an ingredient or story ending. Chomper and its standalone
+  attacks ARE authorized; current attack tuning is a prototype, not Mateo canon.
 - Do not invent systems that do not exist. Mark uncertain claims **Needs verification**.
 
 ## Expected output format

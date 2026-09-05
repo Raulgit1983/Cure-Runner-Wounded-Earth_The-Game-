@@ -346,6 +346,22 @@ export class JourneyScene extends Phaser.Scene {
           });
         });
       },
+      advanceToEncounter: async () => {
+        if (!import.meta.env.DEV) return false;
+        const expectedFinish = this.finishFlow;
+        try {
+          const { ChomperScene } = await import('@/game/scenes/ChomperScene');
+          if (!this.sys.isActive() || this.returnHomeQueued || this.finishFlow !== expectedFinish) return false;
+          if (!this.scene.manager.keys.chomper) this.scene.add('chomper', ChomperScene, false);
+          this.emitFocusMode(false);
+          this.emitVictoryState(false);
+          this.scene.start('chomper');
+          return true;
+        } catch {
+          this.emitGuidanceLine('No se abrió el encuentro. Puedes volver a tocar Seguir.', 4000, this.time.now);
+          return false;
+        }
+      },
       replayCurrentStage: () => {
         this.emitFocusMode(false);
         this.emitVictoryState(false);

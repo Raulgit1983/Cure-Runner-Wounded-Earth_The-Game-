@@ -109,6 +109,19 @@ class ReactiveAudioLayer {
   }
 
   private renderCue(context: AudioContext, master: GainNode, event: AudioCueEvent) {
+    if (event.type === 'chomper_warning_low' || event.type === 'chomper_warning_high') {
+      const low = event.type === 'chomper_warning_low';
+      this.playTone(context, master, {
+        from: low ? 220 : 660, to: low ? 174 : 880,
+        duration: 0.18, volume: 0.026, type: 'triangle', attack: 0.02
+      });
+      this.playTone(context, master, {
+        from: low ? 174 : 880, to: low ? 146 : 990,
+        duration: 0.16, delay: 0.2, volume: 0.022, type: 'sine', attack: 0.02
+      });
+      return;
+    }
+
     if (event.type === 'spark_collect') {
       const note = collectNoteFrequency(event.chain ?? 1);
       this.playTone(context, master, {

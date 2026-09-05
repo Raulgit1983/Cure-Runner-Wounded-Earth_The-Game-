@@ -8,9 +8,11 @@ import {
   BG_BOTTOM_Y,
   BG_CENTER_X,
   BG_CENTER_Y,
+  BG_HEIGHT,
   BG_PARALLAX_LIMIT,
   BG_SCALE,
   BG_TOP_Y,
+  BG_WIDTH,
   BLACK_FOREST_TEXTURES,
   IRIS_SRC_X,
   IRIS_SRC_Y,
@@ -51,8 +53,8 @@ import type { BackdropFrameTargets, StageBackdrop } from './StageBackdrop';
  *      rectangular sprite sliding over a drawing; there is now no anatomy left
  *      in a moving object for that to happen to.
  *   2. The plate, the iris and the mouth are ONE container. They share its
- *      position, drift, parallax, depth and alpha, so nothing can separate from
- *      the drawing.
+ *      position, drift, parallax and depth. A single veil AFTER the assembled
+ *      drawing controls its presence; per-child alpha would expose overlaps.
  *   3. Rest is exactly the authored registration, offset (0,0) — the only place
  *      the cut-outs recompose the plate. Reduced motion pins the iris there and
  *      holds the mouth closed.
@@ -65,10 +67,8 @@ import type { BackdropFrameTargets, StageBackdrop } from './StageBackdrop';
 
 /**
  * The night the drawing sits in. It is deliberately a desaturated, darker
- * version of the plate's own field rather than the previous green-black: the
- * mid-plane is not fully opaque, so whatever is behind it tints every colour in
- * the illustration. Matching the hue means the remaining transparency reads as
- * depth instead of as colour damage.
+ * version of the plate's own field rather than the previous green-black. The
+ * same colours form the veil over the fully opaque art assembly.
  */
 const SKY_TOP = 0x0a1122;
 const SKY_BOTTOM = 0x070c18;
@@ -102,9 +102,10 @@ const FEATHER_OVERSHOOT = 10;
 const FEATHER_EDGE_ALPHA = 0.94;
 
 /**
- * The single knob for "how present is the illustration". It is applied to the
- * container, so the plate and both cut-outs are dimmed by exactly the same
- * amount and cannot drift apart tonally.
+ * The single knob for "how present is the illustration". Phaser multiplies
+ * container alpha into EACH child; fading overlapping opaque patches that way
+ * exposes the plate below them. Instead, composite the art at full opacity and
+ * put one sky-coloured veil over the result. No offscreen texture is needed.
  *
  * It stays close to opaque on purpose. The art is authored colour now, and the
  * heavy knock-down the alpha matte needed (an effective 0.62-0.83) would mix a
@@ -122,6 +123,7 @@ export class BlackForestBackdropRenderer implements StageBackdrop {
   private readonly sky: Phaser.GameObjects.Graphics;
   private readonly midPlane: Phaser.GameObjects.Container;
   private readonly feather: Phaser.GameObjects.Graphics;
+  private readonly atmosphere: Phaser.GameObjects.Graphics;
   private readonly iris?: Phaser.GameObjects.Image;
   private readonly mouth?: Phaser.GameObjects.Image;
   private readonly yawn = new YawnClock();
@@ -174,10 +176,26 @@ export class BlackForestBackdropRenderer implements StageBackdrop {
       midPlaneParts.push(this.mouth);
     }
 
+    this.atmosphere = scene.add.graphics();
+    // Match the sky's vertical gradient at this fixed Y registration. Only X
+    // drifts, so the geometry and colour stops can be drawn once.
+    const skyAt = (y: number) => {
+      const t = y / height;
+      const channel = (shift: number) => Math.round(
+        ((SKY_TOP >> shift) & 255) * (1 - t) + ((SKY_BOTTOM >> shift) & 255) * t
+      );
+      return (channel(16) << 16) | (channel(8) << 8) | channel(0);
+    };
+    const top = skyAt(BG_TOP_Y);
+    const bottom = skyAt(BG_BOTTOM_Y);
+    this.atmosphere.fillGradientStyle(top, top, bottom, bottom, 1, 1, 1, 1);
+    this.atmosphere.fillRect(-BG_WIDTH / 2, -BG_HEIGHT / 2, BG_WIDTH, BG_HEIGHT);
+    midPlaneParts.push(this.atmosphere);
+
     this.midPlane = scene.add
       .container(BG_CENTER_X, BG_CENTER_Y, midPlaneParts)
-      .setDepth(BG_DEPTH)
-      .setAlpha(PLATE_BASE_ALPHA + initialEnvironmentLevel * PLATE_ENV_ALPHA_GAIN);
+      .setDepth(BG_DEPTH);
+    this.updateAtmosphere(initialEnvironmentLevel, 0);
 
     // Above the mid-plane, below every gameplay entity: static geometry, drawn
     // once. The band only drifts sideways, so a vertical dissolve never has to
@@ -225,14 +243,19 @@ export class BlackForestBackdropRenderer implements StageBackdrop {
     const follow = 1 - Math.exp(-deltaSeconds * journeyConfig.backdrop.followSharpness);
 
     this.distance = Phaser.Math.Linear(this.distance, targets.distanceTravelled, follow);
-    this.midPlane.setAlpha(
-      PLATE_BASE_ALPHA +
-        targets.environmentLevel * PLATE_ENV_ALPHA_GAIN +
-        targets.awakeningFeedback * PLATE_AWAKENING_ALPHA_GAIN
-    );
+    this.updateAtmosphere(targets.environmentLevel, targets.awakeningFeedback);
     this.updateIris(deltaSeconds, targets);
     this.updateMouth(deltaSeconds);
     this.applyLayout();
+  }
+
+  private updateAtmosphere(environment: number, awakening: number) {
+    const presence = Phaser.Math.Clamp(
+      PLATE_BASE_ALPHA + environment * PLATE_ENV_ALPHA_GAIN +
+        awakening * PLATE_AWAKENING_ALPHA_GAIN,
+      0, 1
+    );
+    this.atmosphere.setAlpha(1 - presence);
   }
 
   /**
@@ -300,6 +323,7 @@ export class BlackForestBackdropRenderer implements StageBackdrop {
   }
 
   destroy() {
+    if (this.destroyed) return;
     this.destroyed = true;
     this.scene.tweens.killTweensOf(this.midPlane);
     // Takes the iris and the mouth with it — they are children of this

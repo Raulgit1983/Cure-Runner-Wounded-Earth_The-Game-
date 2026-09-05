@@ -8,7 +8,9 @@ export type AudioCueType =
   | 'shark_touch'
   | 'awakening_touch'
   | 'victory_win'
-  | 'jump_player';
+  | 'jump_player'
+  | 'chomper_warning_low'
+  | 'chomper_warning_high';
 
 export interface AudioCueEvent {
   type: AudioCueType;

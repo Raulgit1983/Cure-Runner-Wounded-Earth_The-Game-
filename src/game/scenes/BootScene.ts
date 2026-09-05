@@ -69,6 +69,14 @@ export class BootScene extends Phaser.Scene {
         this.scene.add('level-entry', LevelEntryScene, false);
       }
 
+      // Local QA entry point. The normal three-stage route stays unchanged.
+      if (import.meta.env.DEV && new URLSearchParams(window.location.search).get('encounter') === 'chomper') {
+        const { ChomperScene } = await import('@/game/scenes/ChomperScene');
+        this.scene.add('chomper', ChomperScene, false);
+        this.scene.start('chomper');
+        return;
+      }
+
       this.scene.start(LevelEntryScene ? 'level-entry' : 'journey', { stage: INITIAL_STAGE_KEY });
     } catch {
       this.showError();

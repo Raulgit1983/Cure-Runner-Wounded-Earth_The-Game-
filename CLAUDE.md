@@ -1,5 +1,22 @@
 # Project Instructions — Wounded Hearth / Cure Runner
 
+## Current production authority — 2026-09-05
+
+Raúl now assigns implementation directly to **Codex/Astra**, alongside art and
+QA. Claude is no longer in the active stack. Do not invoke Claude or activate
+paid access; the older model-routing/two-agent sections below are conditional
+historical guidance, not an instruction to delegate. See root `AGENTS.md` and
+`docs/memory/production-stack-orchestration.md`. Creative approval, commit,
+push and deploy remain separate human gates.
+
+Raúl's expanded September mandate also authorizes redesigning the auxiliary
+notes, rewards and platforms (not Mateo originals), and **a standalone Chomper
+encounter after the three existing stages**. The former boss-start gate and
+the speculative "Level 4 — La Frontera del Viento" below do not govern this
+fourth scene. Preserve Mateo's Chomper silhouette and two unequal heads;
+encounter tuning is a reviewable prototype, not a claim about his annotations.
+Ingredient/ending choices still require Raúl. See `docs/memory/CONTINUE_HERE.md`.
+
 ## Identity of the project
 
 This is a mobile-first web game created as a personal, emotional, educational gift from a father to his son Mateo / Amadeo, who lives far away because of migration, visa, political and geopolitical circumstances.

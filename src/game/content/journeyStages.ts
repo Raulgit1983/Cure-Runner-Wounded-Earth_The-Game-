@@ -88,6 +88,8 @@ export interface JourneyStageDefinition {
   label: string;
   backdropKind: JourneyBackdropKind;
   nextStage: JourneyStageKey | null;
+  /** Separate arena after the runner chain; currently a local preview gate. */
+  nextEncounter?: 'chomper';
   traits: JourneyStageTraits;
   entry: JourneyEntryScreen;
   introGuidance?: string;
@@ -643,6 +645,7 @@ export const journeyStages: Record<JourneyStageKey, JourneyStageDefinition> = {
     label: 'The Black Forest',
     backdropKind: 'black-forest',
     nextStage: null,
+    nextEncounter: 'chomper',
     traits: {
       // Explicit, not inherited. Warm collectibles read better than the cool
       // moonlight set against graphite pencil on a dark ground.

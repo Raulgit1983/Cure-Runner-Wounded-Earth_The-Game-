@@ -43,8 +43,8 @@ export interface PauseFlowHost {
  * immediately while `isOpen()` — this module only freezes/unfreezes the
  * runner loop and reports its state.
  *
- * Phaser-coupled end to end (containers, tweens, input); intentionally not
- * unit-tested — its verification is the browser smoke test.
+ * Lifecycle tests exercise the owned objects/tweens with a scene double;
+ * browser smoke tests still verify Phaser's real shutdown and input ordering.
  */
 export class PauseFlow {
   private readonly overlay: Phaser.GameObjects.Rectangle;
@@ -52,12 +52,13 @@ export class PauseFlow {
   private readonly helpStage: Phaser.GameObjects.Container;
   private pauseOpen = false;
   private helpOpen = false;
+  private destroyed = false;
 
   private readonly handlePauseRequest = () => {
     this.toggle();
   };
   private readonly handlePauseKeyDown = (event: KeyboardEvent) => {
-    if (event.key !== 'Escape' && event.key.toLowerCase() !== 'p') {
+    if (event.repeat || (event.key !== 'Escape' && event.key.toLowerCase() !== 'p')) {
       return;
     }
 
@@ -103,7 +104,7 @@ export class PauseFlow {
   }
 
   toggle() {
-    if (!this.scene.sys.isActive()) {
+    if (this.destroyed || !this.scene.sys.isActive()) {
       return;
     }
 
@@ -120,7 +121,7 @@ export class PauseFlow {
   }
 
   close(restoreRun: boolean) {
-    if (!this.pauseOpen && !this.helpOpen) {
+    if (this.destroyed || (!this.pauseOpen && !this.helpOpen)) {
       return;
     }
 
@@ -135,6 +136,7 @@ export class PauseFlow {
       duration: 110,
       ease: 'Quad.easeIn',
       onComplete: () => {
+        if (this.destroyed) return;
         this.overlay.disableInteractive();
         this.overlay.setVisible(false);
       }
@@ -147,6 +149,7 @@ export class PauseFlow {
       duration: 130,
       ease: 'Quad.easeIn',
       onComplete: () => {
+        if (this.destroyed) return;
         this.pauseStage.setVisible(false);
         this.helpStage.setVisible(false);
       }
@@ -158,18 +161,26 @@ export class PauseFlow {
     }
   }
 
-  /** Unbind window listeners and close without resuming — scene shutdown. */
+  /** Synchronous disposal: shutdown must never start another closing tween. */
   destroy() {
+    if (this.destroyed) return;
+    this.destroyed = true;
+
     if (typeof window !== 'undefined') {
       window.removeEventListener('mateo:pause-request', this.handlePauseRequest as EventListener);
       window.removeEventListener('keydown', this.handlePauseKeyDown);
     }
 
-    this.close(false);
+    this.pauseOpen = false;
+    this.helpOpen = false;
+    [this.overlay, this.pauseStage, this.helpStage].forEach((object) => {
+      this.scene.tweens.killTweensOf(object);
+      object.destroy();
+    });
   }
 
   private open() {
-    if (this.pauseOpen || !this.host.canPause()) {
+    if (this.destroyed || this.pauseOpen || !this.host.canPause()) {
       return;
     }
 
@@ -205,7 +216,7 @@ export class PauseFlow {
   }
 
   private openHelp() {
-    if (!this.pauseOpen || this.helpOpen) {
+    if (this.destroyed || !this.pauseOpen || this.helpOpen) {
       return;
     }
 
@@ -222,6 +233,7 @@ export class PauseFlow {
       duration: 110,
       ease: 'Quad.easeIn',
       onComplete: () => {
+        if (this.destroyed) return;
         this.pauseStage.setVisible(false);
       }
     });
@@ -236,7 +248,7 @@ export class PauseFlow {
   }
 
   private closeHelp() {
-    if (!this.pauseOpen || !this.helpOpen) {
+    if (this.destroyed || !this.pauseOpen || !this.helpOpen) {
       return;
     }
 
@@ -253,6 +265,7 @@ export class PauseFlow {
       duration: 110,
       ease: 'Quad.easeIn',
       onComplete: () => {
+        if (this.destroyed) return;
         this.helpStage.setVisible(false);
       }
     });
@@ -270,10 +283,11 @@ export class PauseFlow {
     const panel = this.scene.add.graphics();
     panel.fillStyle(0x0b1117, 0.96);
     panel.lineStyle(2, 0xdce9d6, 0.1);
-    panel.fillRoundedRect(-122, -92, 244, 206, 22);
-    panel.strokeRoundedRect(-122, -92, 244, 206, 22);
+    // The second button row ends at y=134; keep it inside the panel with padding.
+    panel.fillRoundedRect(-122, -92, 244, 248, 22);
+    panel.strokeRoundedRect(-122, -92, 244, 248, 22);
     panel.lineStyle(1, 0xf7fff0, 0.024);
-    panel.strokeRoundedRect(-114, -84, 228, 190, 18);
+    panel.strokeRoundedRect(-114, -84, 228, 232, 18);
     panel.fillStyle(0xf1ffbe, 0.026);
     panel.fillEllipse(0, -48, 88, 24);
 
@@ -328,6 +342,7 @@ export class PauseFlow {
       REPLAY_BUTTON_LABEL,
       98,
       () => {
+        if (this.destroyed) return;
         this.close(false);
         this.host.replayCurrentStage();
       },
@@ -338,6 +353,7 @@ export class PauseFlow {
       HOME_BUTTON_LABEL,
       108,
       () => {
+        if (this.destroyed) return;
         this.close(false);
         this.host.returnToStart();
       },
@@ -361,10 +377,10 @@ export class PauseFlow {
     const panel = this.scene.add.graphics();
     panel.fillStyle(0x0b1117, 0.96);
     panel.lineStyle(2, 0xdce9d6, 0.1);
-    panel.fillRoundedRect(-122, -106, 244, 226, 22);
-    panel.strokeRoundedRect(-122, -106, 244, 226, 22);
+    panel.fillRoundedRect(-122, -106, 244, 250, 22);
+    panel.strokeRoundedRect(-122, -106, 244, 250, 22);
     panel.lineStyle(1, 0xf7fff0, 0.024);
-    panel.strokeRoundedRect(-114, -98, 228, 210, 18);
+    panel.strokeRoundedRect(-114, -98, 228, 234, 18);
     panel.fillStyle(0xf1ffbe, 0.026);
     panel.fillEllipse(0, -62, 96, 24);
 

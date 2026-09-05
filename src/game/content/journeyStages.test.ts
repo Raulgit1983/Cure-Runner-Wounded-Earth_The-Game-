@@ -10,10 +10,13 @@ import { STAGE_OVERLAY_COPY } from './overlayText';
  * Planet's palette, ingredient or copy through an implicit `else`.
  */
 describe('journey stage chain', () => {
-  it('runs wounded-planet -> moonlight-mountain -> black-forest -> end', () => {
+  it('keeps the three runner stages, with a separate Chomper destination after the forest', () => {
     expect(journeyStages['wounded-planet'].nextStage).toBe('moonlight-mountain');
     expect(journeyStages['moonlight-mountain'].nextStage).toBe('black-forest');
     expect(journeyStages['black-forest'].nextStage).toBeNull();
+    expect(journeyStages['black-forest'].nextEncounter).toBe('chomper');
+    expect(journeyStages['wounded-planet'].nextEncounter).toBeUndefined();
+    expect(journeyStages['moonlight-mountain'].nextEncounter).toBeUndefined();
   });
 
   it('has exactly one final stage', () => {
