@@ -1,3 +1,4 @@
+import { musicalPulse } from '@/game/services/audio/musicalPulse';
 import Phaser from 'phaser';
 
 import { journeyConfig } from '@/game/content/journeyConfig';
@@ -50,6 +51,7 @@ export interface ImageBackdropPlan {
     textureKey: string;
     source: BackdropSize;
     fit: BackdropFit;
+    focalFrame?: { width: number; centerY: number; sourceCenterX: number };
   };
   /**
    * An optional transparent cut-out drawn in the plate's OWN on-screen rect, so
@@ -60,6 +62,7 @@ export interface ImageBackdropPlan {
     textureKey: string;
     source: BackdropSize;
   };
+  musicalMoon?: boolean;
   /** Page tone behind the plate. */
   pageColor: number;
   /**
@@ -140,16 +143,13 @@ export const IMAGE_BACKDROP_PLANS: Partial<Record<JourneyBackdropKind, ImageBack
   'moonlight-mountain': {
     plate: {
       textureKey: 'moonlight-mountain-bg-main',
-      // 1575x999 landscape. Scaled to the viewport HEIGHT, so the full source
-      // canvas is preserved and the extra width becomes the pan budget.
-      source: { width: 1575, height: 999 },
-      fit: 'cover-height'
+      // Fixed focal frame: keep Mateo's open moon arcs and mountain together.
+      source: { width: 1024, height: 1536 },
+      fit: 'contain',
+      focalFrame: { width: 360, centerY: 334, sourceCenterX: 512 }
     },
-    overlay: {
-      textureKey: 'moonlight-mountain-moon-arcs',
-      source: { width: 1080, height: 680 }
-    },
-    pageColor: 0x0a1018,
+    musicalMoon: true,
+    pageColor: 0x131e2b,
     veil: {
       // Already a night plate, so it reaches readable contrast with less.
       color: 0x08101c,
@@ -167,6 +167,10 @@ export const IMAGE_BACKDROP_PLANS: Partial<Record<JourneyBackdropKind, ImageBack
 
 export class ImageBackdropRenderer implements StageBackdrop {
   private readonly page: Phaser.GameObjects.Graphics;
+  private readonly moonLight?: Phaser.GameObjects.Image;
+  private readonly moonMask?: Phaser.GameObjects.Graphics;
+  private readonly moonGeometryMask?: Phaser.Display.Masks.GeometryMask;
+  private readonly terrain?: Phaser.GameObjects.Graphics;
   private readonly plate: Phaser.GameObjects.Image;
   private readonly arcs?: Phaser.GameObjects.Image;
   /** Second, barely larger pass over the arcs — the "gone over twice" weight. */
@@ -192,6 +196,14 @@ export class ImageBackdropRenderer implements StageBackdrop {
     };
     this.environmentLevel = clamp01(initialEnvironmentLevel);
     this.layout = fitPlate(plan.plate.source, this.view, plan.plate.fit);
+    if (plan.plate.focalFrame) {
+      const frame = plan.plate.focalFrame;
+      this.layout.scale = frame.width / plan.plate.source.width;
+      this.layout.width = frame.width;
+      this.layout.height = plan.plate.source.height * this.layout.scale;
+      this.layout.centerY = frame.centerY;
+      this.layout.overflowX = 0;
+    }
     this.panProgress = prefersReducedMotion() ? 0.5 : 0;
 
     this.page = scene.add.graphics().setDepth(-0.1);
@@ -237,6 +249,46 @@ export class ImageBackdropRenderer implements StageBackdrop {
     // It does not move `runnerConfig.visual.groundLineY`; it reads it.
     this.floor = scene.add.graphics().setDepth(0.14);
     this.paintFloor();
+    if (plan.plate.focalFrame) {
+      this.terrain = scene.add.graphics().setDepth(0.08);
+      const base = this.layout.centerY + this.layout.height / 2;
+      const top = this.layout.centerY - this.layout.height / 2;
+      this.terrain.fillGradientStyle(plan.pageColor, plan.pageColor, plan.pageColor, plan.pageColor, 1, 1, 0, 0);
+      this.terrain.fillRect(-2, top - 1, this.view.width + 4, 13);
+      this.terrain.fillGradientStyle(plan.pageColor, plan.pageColor, plan.pageColor, plan.pageColor, 0, 0, 1, 1);
+      this.terrain.fillRect(-2, base - 72, this.view.width + 4, 74);
+      // Quiet graphite strata connect the source foothills to the support line.
+      // These are auxiliary terrain marks, never collision or source edits.
+      for (let i = 0; i < 30; i++) {
+        const y = base - 10 + i * 8;
+        this.terrain.lineStyle(1, i % 3 ? 0x749095 : 0xa7acaa, 0.10);
+        const x = ((i * 71) % 400) - 40;
+        this.terrain.lineBetween(x, y + 9, x + 96, y - 9);
+        this.terrain.lineBetween(x + 96, y - 9, x + 148, y - 5);
+      }
+    }
+    if (plan.musicalMoon) {
+      // A runtime geometry mask follows the visible lunar disk and the original
+      // two-peak silhouette. It lights the retained image, never the whole sky.
+      const scale = this.layout.scale;
+      const top = this.layout.centerY - this.layout.height / 2;
+      this.moonMask = scene.make.graphics({ x: 0, y: 0 });
+      const points: {x:number;y:number}[] = [];
+      // Start at the left lower lunar edge and travel over the full upper rim.
+      for (let deg = 132; deg <= 404; deg += 2) {
+        const angle = deg * Math.PI / 180;
+        points.push({x:(517 + 236 * Math.cos(angle))*scale,y:top+(444 + 235*Math.sin(angle))*scale});
+      }
+      // Return along the mountain ridgeline, excluding its opaque silhouette.
+      for (const [x,y] of [[652,582],[584,360],[558,417],[530,440],[482,514],[443,460],[400,552],[367,622]]) {
+        points.push({x:x*scale,y:top+y*scale});
+      }
+      this.moonMask.fillStyle(0xffffff).fillPoints(points,true);
+      this.moonGeometryMask = this.moonMask.createGeometryMask();
+      this.moonLight = scene.add.image(this.view.width/2,this.layout.centerY,plan.plate.textureKey)
+        .setScale(scale).setDepth(.06).setBlendMode(Phaser.BlendModes.ADD)
+        .setMask(this.moonGeometryMask).setAlpha(0);
+    }
   }
 
   renderInitial() {
@@ -276,12 +328,23 @@ export class ImageBackdropRenderer implements StageBackdrop {
     this.veil.destroy();
     this.floor.destroy();
     this.page.destroy();
+    this.moonLight?.destroy();
+    this.moonGeometryMask?.destroy();
+    this.moonMask?.destroy();
+    this.terrain?.destroy();
   }
 
   private applyLayout() {
-    const centerX = panCenterX(this.layout, this.view, this.panProgress);
+    const frame = this.plan.plate.focalFrame;
+    const centerX = frame
+      ? this.view.width / 2 + (this.plan.plate.source.width / 2 - frame.sourceCenterX) * this.layout.scale
+      : panCenterX(this.layout, this.view, this.panProgress);
 
     this.plate.setX(centerX);
+    if (this.moonLight) {
+      const energy = musicalPulse.sample();
+      this.moonLight.setX(centerX).setAlpha(energy * (prefersReducedMotion() ? .065 : .20));
+    }
     this.veil.setAlpha(veilAlpha(this.environmentLevel, this.plan.veil));
 
     if (this.arcs && this.arcsWeight) {

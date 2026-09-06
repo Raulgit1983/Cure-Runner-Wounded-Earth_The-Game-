@@ -12,9 +12,9 @@ export const REPLAY_BUTTON_LABEL = 'Repetir';
 export const HELP_BUTTON_LABEL = 'Ayuda';
 export const FINISH_CONTINUE_BUTTON_LABEL = 'Seguir';
 
-export const PAUSE_TITLE = 'Pausa.';
+export const PAUSE_TITLE = 'En pausa';
 export const PAUSE_BODY = 'Puedes seguir cuando quieras.';
-export const PAUSE_CLOSING = 'La ruta espera.';
+export const PAUSE_CLOSING = 'El recorrido espera aquí.';
 
 /**
  * Per-stage overlay copy, keyed by stage instead of the old
@@ -27,35 +27,41 @@ export interface StageOverlayCopy {
   failClosing: string;
   finishTitle: string;
   finishLabel: string;
+  finishBody: string;
+  invitation: string;
 }
 
 export const STAGE_OVERLAY_COPY: Record<JourneyStageKey, StageOverlayCopy> = {
   'wounded-planet': {
-    failTitle: 'Aún hay luz.',
-    failBody: 'El camino no se cierra.',
-    failClosing: 'Toca para volver.',
-    finishTitle: 'Nota despertada',
-    finishLabel: 'Algo cambió.'
+    failTitle: 'Prueba otra ruta',
+    failBody: '¿Y si saltas un poco antes?',
+    failClosing: 'Cada intento puede ser distinto.',
+    finishTitle: 'Encontraste la Nota Sol',
+    finishLabel: 'El planeta aún respira.',
+    finishBody: 'Encontraste la Nota Sol. Su sonido te acompaña hacia la montaña.',
+    invitation: '¿Un bajo, un soplo, una voz? Inventa un sonido para este planeta.'
   },
   'moonlight-mountain': {
-    failTitle: 'Aún hay reflejo.',
-    failBody: 'La luna sigue ahí.',
-    failClosing: 'Toca para volver.',
+    failTitle: 'Una vuelta más',
+    failBody: 'Prueba a pasar bajo los altos.',
+    failClosing: 'Cada intento puede ser distinto.',
     finishTitle: 'Reflejo despierto',
     // Was 'Hasta aquí, por ahora.' — that was end-of-game copy riding on the
     // moonlight flag. Moonlight now continues into Black Forest, so the
     // end-of-game lines moved to FINISH_FINAL_* below, keyed on `nextStage`.
-    finishLabel: 'El reflejo respondió.'
+    finishLabel: 'La música sigue contigo.',
+    finishBody: 'Llevas un fragmento de la montaña. Entre los pinos espera otro camino.',
+    invitation: '¿Qué cambiarías con el ritmo: la luz, los cristales, el camino?'
   },
   'black-forest': {
-    failTitle: 'El bosque sigue ahí.',
-    failBody: 'Puedes volver a entrar.',
-    failClosing: 'Toca para volver.',
-    // [PENDIENTE DE RAÚL] Neutral, factual placeholder. The ingredient, the
-    // Chomper boss and the real closing message for this world are not
-    // designed yet, and none of them are invented here.
+    failTitle: 'El bosque te espera',
+    failBody: 'Busca un hueco entre las ramas.',
+    failClosing: 'Cada intento puede ser distinto.',
+    // Observed crossing only. No ingredient or narrative resolution is invented.
     finishTitle: 'Bosque cruzado',
-    finishLabel: 'Llegaste al final.'
+    finishLabel: 'Cruzaste entre los pinos.',
+    finishBody: 'Entre los pinos hay alguien más. Chomper te espera al otro lado.',
+    invitation: 'Si este bosque hablara, ¿qué voz tendría? ¿Qué te diría?'
   }
 };
 
@@ -114,15 +120,15 @@ export const DISCOVERY_BEATS: Record<DiscoveryBeatId, DiscoveryBeatDefinition> =
   },
   notes_intro: {
     mode: 'panel',
-    title: 'Notas.',
-    body: 'Cada nota despierta el planeta.',
-    closing: 'Y llena la reserva.'
+    title: 'Sigue las notas',
+    body: 'Recoge notas para llenar tu reserva.',
+    closing: 'Cien notas: una transformación.'
   },
   hazard_intro: {
     mode: 'panel',
-    title: 'Golpe.',
-    body: 'Te quita aire.',
-    closing: 'Mide el salto.'
+    title: 'Puedes seguir',
+    body: 'Saltarlos a tiempo conserva tu aire.',
+    closing: 'Si están altos, pasa por debajo.'
   },
   reserve_hint: {
     mode: 'guidance',
@@ -131,19 +137,19 @@ export const DISCOVERY_BEATS: Record<DiscoveryBeatId, DiscoveryBeatDefinition> =
   },
   reserve_gain: {
     mode: 'panel',
-    title: 'Reserva.',
-    body: 'Ganaste una reserva.',
-    closing: 'Te salva una vez.'
+    title: 'El Latido de Alfredito',
+    body: '¡Tu personaje se ha transformado!',
+    closing: 'Esta forma te protege una vez.'
   },
   reserve_spent: {
     mode: 'panel',
-    title: 'Reserva.',
-    body: 'Se usó la reserva.',
-    closing: 'Ya no queda.'
+    title: 'El Latido te ha protegido',
+    body: 'Una reserva te ha devuelto aire.',
+    closing: 'Al agotarlas, vuelves a tu personaje.'
   },
   shark_sighting: {
     mode: 'guidance',
-    text: 'Hay aire arriba.',
+    text: 'Tiburoncín lleva aire.',
     durationMs: 2000
   },
   shark_catch: {

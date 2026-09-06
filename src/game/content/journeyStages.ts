@@ -88,7 +88,7 @@ export interface JourneyStageDefinition {
   label: string;
   backdropKind: JourneyBackdropKind;
   nextStage: JourneyStageKey | null;
-  /** Separate arena after the runner chain; currently a local preview gate. */
+  /** Separate arena after the runner chain; loaded only when reached. */
   nextEncounter?: 'chomper';
   traits: JourneyStageTraits;
   entry: JourneyEntryScreen;
@@ -538,7 +538,7 @@ export const journeyStages: Record<JourneyStageKey, JourneyStageDefinition> = {
       eyebrow: 'Nivel 1',
       title: 'Wounded Planet',
       framing: 'Entra en el planeta herido.',
-      detail: 'Recoge las notas de luz y cúralo.',
+      detail: 'Busca las notas y salta los obstáculos.',
       cta: 'Entrar',
       primaryColor: 0x90e6b7,
       accentColor: 0xe9ffaf,
@@ -588,8 +588,8 @@ export const journeyStages: Record<JourneyStageKey, JourneyStageDefinition> = {
     entry: {
       eyebrow: 'Nivel 2',
       title: 'Moonlight Mountain',
-      framing: 'La montaña devuelve reflejos.',
-      detail: 'Salta los reflejos y sigue la luz.',
+      framing: 'La luna responde a tus sonidos.',
+      detail: 'Salta los cristales bajos. Pasa bajo los altos.',
       cta: 'Seguir',
       primaryColor: 0x95c5d8,
       accentColor: 0xcef2ff,
@@ -607,7 +607,7 @@ export const journeyStages: Record<JourneyStageKey, JourneyStageDefinition> = {
       }
     },
     introGuidance: 'Todo refleja aquí.',
-    beatGuidance: 'Brillan con cada nota.',
+    beatGuidance: 'Cada nota enciende la luna.',
     surfaceGuidance: 'La luna abre camino.',
     runner: {
       // Slightly slower than the first world for fair reaction time: the

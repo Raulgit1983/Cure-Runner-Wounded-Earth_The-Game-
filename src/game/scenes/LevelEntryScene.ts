@@ -1,3 +1,4 @@
+import { uiText } from '@/ui/nativeText';
 import Phaser from 'phaser';
 
 import { journeyConfig } from '@/game/content/journeyConfig';
@@ -27,10 +28,10 @@ const CAROUSEL_NAME_Y = 414;
 const CAROUSEL_DOTS_Y = 432;
 const CAROUSEL_HINT_Y = 448;
 const COPY_CARD_Y = 464;
-const COPY_CARD_HEIGHT = 88;
+const COPY_CARD_HEIGHT = 100;
 /** Offsets inside the copy card; keep framing clear of the decorative bar. */
-const COPY_FRAMING_OFFSET_Y = 32;
-const COPY_DETAIL_OFFSET_Y = 66;
+const COPY_FRAMING_OFFSET_Y = 28;
+const COPY_DETAIL_OFFSET_Y = 68;
 const CTA_Y = 586;
 
 // Portrait boxes: the active card sits in the 110-132px range, sized by the
@@ -96,18 +97,16 @@ export class LevelEntryScene extends Phaser.Scene {
       .ellipse(centerX, Math.round(height * 0.42), 200, 200, entry.primaryColor, 0.035)
       .setBlendMode(Phaser.BlendModes.ADD);
 
-    this.add
-      .text(centerX, Math.round(height * 0.5 - 64), entry.loading.eyebrow, {
+    uiText(this, centerX, Math.round(height * 0.5 - 64), entry.loading.eyebrow, {
         fontFamily: UI_FONT_STACK,
-        fontSize: '12px',
+        fontSize: '15px',
         color: '#b8c4cc'
       })
       .setOrigin(0.5)
       .setResolution(uiTextResolution())
       .setAlpha(0.82);
 
-    this.add
-      .text(centerX, height * 0.5 - 10, entry.loading.title, {
+    uiText(this, centerX, height * 0.5 - 10, entry.loading.title, {
         fontFamily: UI_FONT_STACK,
         fontSize: '20px',
         color: '#fff5ea'
@@ -115,13 +114,12 @@ export class LevelEntryScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setResolution(uiTextResolution());
 
-    this.add
-      .text(centerX, height * 0.5 + 22, entry.loading.copy, {
+    uiText(this, centerX, height * 0.5 + 22, entry.loading.copy, {
         fontFamily: UI_FONT_STACK,
-        fontSize: '11px',
+        fontSize: '15px',
         color: '#d5d8df',
         align: 'center',
-        wordWrap: { width: 220, useAdvancedWrap: true }
+        wordWrap: { width: 280, useAdvancedWrap: true }
       })
       .setOrigin(0.5)
       .setResolution(uiTextResolution());
@@ -163,7 +161,8 @@ export class LevelEntryScene extends Phaser.Scene {
     const ctaY = CTA_Y;
 
     this.emitUiScreen('chapter');
-    this.children.removeAll();
+    window.dispatchEvent(new CustomEvent('mateo:focus-mode', { detail: { active: false } }));
+    this.children.removeAll(true);
     this.cameras.main.resetFX();
     this.cameras.main.setBackgroundColor('#091018');
     this.cameras.main.fadeIn(260, 8, 12, 18);
@@ -181,29 +180,26 @@ export class LevelEntryScene extends Phaser.Scene {
       .ellipse(centerX, Math.round(height * 0.76), 250, 78, entry.primaryColor, 0.035)
       .setBlendMode(Phaser.BlendModes.ADD);
 
-    const eyebrow = this.add
-      .text(centerX, EYEBROW_Y, entry.eyebrow, {
+    const eyebrow = uiText(this, centerX, EYEBROW_Y, entry.eyebrow, {
         fontFamily: UI_FONT_STACK,
-        fontSize: '12px',
+        fontSize: '15px',
         color: '#b8c4cc'
       })
       .setOrigin(0.5)
       .setResolution(uiTextResolution())
       .setAlpha(0);
 
-    const title = this.add
-      .text(centerX, TITLE_Y, entry.title, {
+    const title = uiText(this, centerX, TITLE_Y, entry.title, {
         fontFamily: UI_FONT_STACK,
         fontSize: '24px',
         color: '#fff8ef',
         stroke: '#0a0e14',
         strokeThickness: 2,
         align: 'center',
-        wordWrap: { width: 240, useAdvancedWrap: true }
+        wordWrap: { width: 320, useAdvancedWrap: true }
       })
       .setOrigin(0.5)
       .setResolution(uiTextResolution())
-      .setShadow(0, 1, '#04070b', 3, false, true)
       .setAlpha(0)
       .setScale(0.92);
 
@@ -228,6 +224,9 @@ export class LevelEntryScene extends Phaser.Scene {
       .setBlendMode(Phaser.BlendModes.ADD)
       .setAlpha(0);
 
+    artHalo.setVisible(false);
+    artShadow.setVisible(false);
+
     let artImage: Phaser.GameObjects.Image | null = null;
 
     if (this.textures.exists(entry.art.textureKey)) {
@@ -250,33 +249,30 @@ export class LevelEntryScene extends Phaser.Scene {
     const copyCard = this.add.graphics().setAlpha(0);
     copyCard.fillStyle(0x101720, 0.92);
     copyCard.lineStyle(2, entry.accentColor, 0.18);
-    copyCard.fillRoundedRect(centerX - 132, copyCardY, 264, copyCardHeight, 24);
-    copyCard.strokeRoundedRect(centerX - 132, copyCardY, 264, copyCardHeight, 24);
+    copyCard.fillRoundedRect(centerX - 156, copyCardY, 312, copyCardHeight, 24);
+    copyCard.strokeRoundedRect(centerX - 156, copyCardY, 312, copyCardHeight, 24);
     copyCard.fillStyle(entry.primaryColor, 0.07);
     copyCard.fillRoundedRect(centerX - 116, copyCardY + 12, 232, 14, 7);
 
-    const framing = this.add
-      .text(centerX, copyCardY + COPY_FRAMING_OFFSET_Y, entry.framing, {
+    const framing = uiText(this, centerX, copyCardY + COPY_FRAMING_OFFSET_Y, entry.framing, {
         fontFamily: UI_FONT_STACK,
         fontSize: '17px',
         color: '#fff7ed',
         stroke: '#0a0e14',
         strokeThickness: 1,
         align: 'center',
-        wordWrap: { width: 210, useAdvancedWrap: true }
+        wordWrap: { width: 280, useAdvancedWrap: true }
       })
       .setOrigin(0.5)
       .setResolution(uiTextResolution())
-      .setShadow(0, 1, '#04070b', 2, false, true)
       .setAlpha(0);
 
-    const detail = this.add
-      .text(centerX, copyCardY + COPY_DETAIL_OFFSET_Y, entry.detail, {
+    const detail = uiText(this, centerX, copyCardY + COPY_DETAIL_OFFSET_Y, entry.detail, {
         fontFamily: UI_FONT_STACK,
-        fontSize: '12px',
+        fontSize: '15px',
         color: '#d4dde4',
         align: 'center',
-        wordWrap: { width: 220, useAdvancedWrap: true }
+        wordWrap: { width: 280, useAdvancedWrap: true }
       })
       .setOrigin(0.5)
       .setResolution(uiTextResolution())
@@ -308,8 +304,8 @@ export class LevelEntryScene extends Phaser.Scene {
     ]);
 
     const ctaPanel = this.add.graphics();
-    const ctaWidth = 118;
-    const ctaHeight = 36;
+    const ctaWidth = 196;
+    const ctaHeight = 48;
     const ctaX = centerX;
 
     ctaPanel.fillStyle(0x121a21, 0.94);
@@ -319,18 +315,16 @@ export class LevelEntryScene extends Phaser.Scene {
     ctaPanel.fillStyle(entry.accentColor, 0.05);
     ctaPanel.fillRoundedRect(-ctaWidth * 0.5 + 8, -ctaHeight * 0.5 + 6, ctaWidth - 16, 8, 4);
 
-    const ctaText = this.add
-      .text(0, 0, entry.cta, {
+    const ctaText = uiText(this, 0, 0, entry.cta, {
         fontFamily: UI_FONT_STACK,
-        fontSize: '13px',
+        fontSize: '16px',
         color: '#f7f6ec',
         stroke: '#0a1015',
         strokeThickness: 1,
         align: 'center'
       })
       .setOrigin(0.5)
-      .setResolution(uiTextResolution())
-      .setShadow(0, 1, '#04070b', 2, false, true);
+      .setResolution(uiTextResolution());
 
     const ctaHit = this.add
       .rectangle(0, 0, ctaWidth + 16, ctaHeight + 12, 0x000000, 0.001)
@@ -363,7 +357,7 @@ export class LevelEntryScene extends Phaser.Scene {
 
     this.tweens.add({
       targets: eyebrow,
-      alpha: 0.72,
+      alpha: 1,
       duration: 340,
       delay: 120,
       ease: 'Quad.easeOut'
@@ -499,8 +493,7 @@ export class LevelEntryScene extends Phaser.Scene {
       }
     });
 
-    const nameText = this.add
-      .text(centerX, CAROUSEL_NAME_Y, characters[activeIndex]!.displayName, {
+    const nameText = uiText(this, centerX, CAROUSEL_NAME_Y, characters[activeIndex]!.displayName, {
         fontFamily: UI_FONT_STACK,
         fontSize: '16px',
         color: '#fff7ed',
@@ -509,8 +502,7 @@ export class LevelEntryScene extends Phaser.Scene {
         align: 'center'
       })
       .setOrigin(0.5)
-      .setResolution(uiTextResolution())
-      .setShadow(0, 1, '#04070b', 2, false, true);
+      .setResolution(uiTextResolution());
 
     const dots = characters.map((_character, index) =>
       this.add.ellipse(
@@ -523,16 +515,15 @@ export class LevelEntryScene extends Phaser.Scene {
       )
     );
 
-    const hint = this.add
-      .text(centerX, CAROUSEL_HINT_Y, SWIPE_HINT_TEXT, {
+    const hint = uiText(this, centerX, CAROUSEL_HINT_Y, SWIPE_HINT_TEXT, {
         fontFamily: UI_FONT_STACK,
-        fontSize: '10px',
+        fontSize: '14px',
         color: '#b8c4cc',
         align: 'center'
       })
       .setOrigin(0.5)
       .setResolution(uiTextResolution())
-      .setAlpha(0.62);
+      .setAlpha(1);
 
     layer.add([nameText, ...dots, hint]);
 
@@ -623,7 +614,7 @@ export class LevelEntryScene extends Phaser.Scene {
 
     applyLayout(false);
     // Persist on open too, so the shown character is the one that will play
-    // even if the stored value was a retired id (Carlitos) or was never set.
+    // even if the stored value was a retired id (Alfredito) or was never set.
     localPreferenceStore.saveCharacterId(characters[activeIndex]!.id as PlayableCharacterId);
 
     this.tweens.add({

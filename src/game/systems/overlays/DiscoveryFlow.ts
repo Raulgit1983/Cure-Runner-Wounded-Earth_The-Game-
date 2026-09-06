@@ -1,3 +1,4 @@
+import { uiText } from '@/ui/nativeText';
 import Phaser from 'phaser';
 
 import {
@@ -255,73 +256,67 @@ export class DiscoveryFlow {
     const panel = this.scene.add.graphics();
     panel.fillStyle(0x0b1117, 0.96);
     panel.lineStyle(2, 0xdce9d6, 0.11);
-    panel.fillRoundedRect(-118, -80, 236, 176, 22);
-    panel.strokeRoundedRect(-118, -80, 236, 176, 22);
+    panel.fillRoundedRect(-154, -112, 308, 260, 22);
+    panel.strokeRoundedRect(-154, -112, 308, 260, 22);
     panel.lineStyle(1, 0xf7fff0, 0.025);
-    panel.strokeRoundedRect(-110, -72, 220, 160, 18);
+    panel.strokeRoundedRect(-146, -104, 292, 244, 18);
     panel.fillStyle(0xf1ffbe, 0.028);
     panel.fillEllipse(0, -40, 84, 24);
     panel.fillStyle(0xd8f4df, 0.026);
     panel.fillCircle(-78, -42, 2);
     panel.fillCircle(78, -42, 2);
 
-    const title = this.scene.add
-      .text(0, -42, 'Notas.', {
+    const title = uiText(this.scene, 0, -70, 'Notas.', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '18px',
+        fontSize: '26px',
         color: '#f2ffbe',
         stroke: '#081018',
         strokeThickness: 2,
         align: 'center'
       })
       .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#03060a', 3, false, true);
-    const body = this.scene.add
-      .text(0, -2, 'Cada nota despierta el planeta.', {
+      .setResolution(2);
+    const body = uiText(this.scene, 0, -16, 'Cada nota despierta el planeta.', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '14px',
+        fontSize: '17px',
         color: '#fff7ec',
         stroke: '#091018',
         strokeThickness: 1,
         align: 'center',
-        wordWrap: { width: 186, useAdvancedWrap: true },
+        wordWrap: { width: 260, useAdvancedWrap: true },
         lineSpacing: 3
       })
       .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const closing = this.scene.add
-      .text(0, 32, 'Y llena la reserva.', {
+      .setResolution(2);
+    const closing = uiText(this.scene, 0, 32, 'Y llena la reserva.', {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '12px',
+        fontSize: '16px',
         color: '#cfe8d9',
         stroke: '#091018',
         strokeThickness: 1,
         align: 'center',
-        wordWrap: { width: 184, useAdvancedWrap: true },
+        wordWrap: { width: 260, useAdvancedWrap: true },
         lineSpacing: 3
       })
       .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
+      .setResolution(2);
     const continueButton = createPanelButton(
       this.scene,
       CONTINUE_BUTTON_LABEL,
-      98,
+      128,
       () => this.dismiss(this.scene.time.now),
       '11px'
     );
     const homeButton = createPanelButton(
       this.scene,
       HOME_BUTTON_LABEL,
-      112,
+      128,
       () => this.host.returnToStart(),
       '11px'
     );
 
-    continueButton.setPosition(-54, 78);
-    homeButton.setPosition(58, 78);
+    continueButton.setPosition(-70, 106);
+    homeButton.setPosition(70, 106);
 
     return {
       container: this.scene.add

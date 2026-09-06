@@ -1,6 +1,6 @@
 # Production stack orchestration
 
-Current authority updated: 2026-09-05
+Current authority updated: 2026-09-06
 
 ## Active stack — supersedes the historical routing below
 
@@ -20,6 +20,37 @@ destructive actions retain their existing boundaries. Art candidates stay in
 `art-lab/` until approved. See [project-current-state.md](project-current-state.md)
 for verified implementation status and [polish-2026-09-05.md](polish-2026-09-05.md)
 for this slice's evidence.
+
+Historical initial integration, superseded by the 2026-09-06 release below:
+The editorial/mobile slice was integrated locally for review on top of
+`b6be6472a0ff0fbc0e4efc1f3587c06aaf1612af`, with no commit or publication.
+Raúl explicitly requested local integration of the forest floor candidate and
+full-size reserve transformation, subsequently naming the shared form Alfredito.
+See [editorial report](editorial-mobile-2026-09-05.md) and
+[educational direction](editorial-direction-2026-09-05.md). The local integration
+is reviewable implementation, not a claim of final physical art approval.
+
+## Estado vigente — cierre y publicación, 2026-09-06
+
+Raúl autorizó terminar, guardar y publicar para Mateo. Está confirmado el correo
+`lamanigua.ca@gmail.com`: el usuario aportó la recepción del mensaje técnico.
+Los formularios se envían dentro del juego y siguen al capítulo que corresponde;
+Inicio desde pausa pide confirmación. El final permite empezar desde el primer
+mundo. Se han afinado las preguntas y el tono; luna completa y cristales según
+la referencia elegida, con brillo vinculado al sonido real. Chomper v4 aprobado
+se incorpora a la secuencia pública mediante carga diferida.
+
+Base: `b6be6472a0ff0fbc0e4efc1f3587c06aaf1612af`; rama de trabajo
+`visual/world-01-carlitos-drive`. Se preserva el pase anterior completo.
+232 pruebas / 22 archivos, check y build correctos; 210 capturas en 5 formatos.
+Estado de publicación y recibo exacto: [release-2026-09-06.md](release-2026-09-06.md).
+La publicación está preparada y autorizada; comprobar el recibo antes de
+presentarla como completada. URL:
+https://raulgit1983.github.io/Cure-Runner-Wounded-Planet/
+
+Codex/Astra continúa como único escritor. No activar Claude, reiniciar el pase,
+limpiar originales/art-lab ni modificar el lockfile por rutina. La revisión real
+de Mateo sigue pendiente; las pruebas emuladas no equivalen a Safari físico.
 
 ## Historical stack — verified 2026-08-09, currently inactive
 

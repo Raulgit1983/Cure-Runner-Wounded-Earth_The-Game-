@@ -1,3 +1,8 @@
+import moonlightPortraitUrl from '@/assets/worlds/moonlight-mountain/runtime/moonlight-portrait-v2.webp';
+import { reservePoses } from '@/game/content/reserveArt';
+import { reserveForm } from '@/game/systems/character/reserveForm';
+import blackForestFloorUrl from '@/assets/worlds/black-forest/runtime/black-forest-floor-v1.webp';
+import { uiText } from '@/ui/nativeText';
 import Phaser from 'phaser';
 
 import blackForestIrisUrl from '@/assets/worlds/black-forest/runtime/black-forest-color-iris-v4.webp';
@@ -5,8 +10,6 @@ import blackForestMouthClosedUrl from '@/assets/worlds/black-forest/runtime/blac
 import blackForestMouthMidUrl from '@/assets/worlds/black-forest/runtime/black-forest-color-mouth-mid-v4.webp';
 import blackForestMouthOpenUrl from '@/assets/worlds/black-forest/runtime/black-forest-color-mouth-open-v4.webp';
 import blackForestPlateUrl from '@/assets/worlds/black-forest/runtime/black-forest-color-plate-v4.webp';
-import moonlightBgMainUrl from '@/assets/worlds/moonlight-mountain/runtime/moonlight-mountain-bg-main.webp';
-import moonlightMoonArcsUrl from '@/assets/worlds/moonlight-mountain/runtime/moonlight-mountain-moon-arcs.webp';
 import woundedPlanetBgMainUrl from '@/assets/worlds/world-01/runtime/wounded-planet-bg-main.webp';
 
 import {
@@ -37,7 +40,7 @@ import {
   ImageBackdropRenderer
 } from '@/game/systems/backdrop/ImageBackdropRenderer';
 import type { StageBackdrop } from '@/game/systems/backdrop/StageBackdrop';
-import { CarlitosHeartbeat } from '@/game/systems/character/CarlitosHeartbeat';
+import { AlfreditoPower } from '@/game/systems/character/AlfreditoPower';
 import { CharacterAnimator } from '@/game/systems/character/CharacterAnimator';
 import { EmotionController } from '@/game/systems/emotion/EmotionController';
 import { GuidanceDirector } from '@/game/systems/guidance/GuidanceDirector';
@@ -79,14 +82,12 @@ const stageTextures: Record<JourneyBackdropKind, readonly StageTexture[]> = {
   'moonlight-mountain': [
     {
       key: IMAGE_BACKDROP_PLANS['moonlight-mountain']!.plate.textureKey,
-      url: moonlightBgMainUrl
-    },
-    {
-      key: IMAGE_BACKDROP_PLANS['moonlight-mountain']!.overlay!.textureKey,
-      url: moonlightMoonArcsUrl
+      url: moonlightPortraitUrl
+
     }
   ],
   'black-forest': [
+    { key: 'black-forest-floor-v1', url: blackForestFloorUrl },
     { key: BLACK_FOREST_TEXTURES.plate, url: blackForestPlateUrl },
     { key: BLACK_FOREST_TEXTURES.iris, url: blackForestIrisUrl },
     { key: BLACK_FOREST_TEXTURES.mouthClosed, url: blackForestMouthClosedUrl },
@@ -160,8 +161,9 @@ export class JourneyScene extends Phaser.Scene {
    * and written by this scene exactly as before.
    */
   private hero!: Phaser.GameObjects.Sprite;
+  private selectedCharacter!: PlayableCharacter;
   private heroAnimator!: CharacterAnimator;
-  private carlitosHeartbeat!: CarlitosHeartbeat;
+  private alfreditoPower!: AlfreditoPower;
   private hitReaction!: Phaser.GameObjects.Container;
   private hitReactionText!: Phaser.GameObjects.Text;
   private pauseFlow!: PauseFlow;
@@ -240,6 +242,9 @@ export class JourneyScene extends Phaser.Scene {
    * which matters on a phone.
    */
   preload() {
+    Object.values(reservePoses).forEach(pose => {
+      if (pose && !this.textures.exists(pose.key)) this.load.image(pose.key, pose.url);
+    });
     stageTextures[this.stage.backdropKind].forEach((texture) => {
       if (!this.textures.exists(texture.key)) {
         this.load.image(texture.key, texture.url);
@@ -258,7 +263,8 @@ export class JourneyScene extends Phaser.Scene {
 
     // Re-read the preference on every create() so a pick made on the entry
     // screen applies to this run (and survives scene.restart()).
-    this.character = getCharacter(localPreferenceStore.loadCharacterId());
+    this.selectedCharacter = getCharacter(localPreferenceStore.loadCharacterId());
+    this.character = this.reserveAppearance(sessionState.snapshot().recoveryChances);
 
     this.victoryFrozen = false;
     this.returnHomeQueued = false;
@@ -295,14 +301,14 @@ export class JourneyScene extends Phaser.Scene {
       .setOrigin(CHARACTER_RENDER_ORIGIN.x, CHARACTER_RENDER_ORIGIN.y)
       .setDepth(5);
     this.heroAnimator = new CharacterAnimator(this, this.hero, this.character);
-    this.carlitosHeartbeat = new CarlitosHeartbeat(this);
+    this.alfreditoPower = new AlfreditoPower(this);
     const hitReaction = this.createHitReaction();
     this.hitReaction = hitReaction.container;
     this.hitReactionText = hitReaction.text;
 
     this.baseHeroScale = getGameplayScale(this.character);
     // Pack-v2 canvases carry ~85px of transparent padding under the character,
-    // so the drawing's feet stop well short of the support point while Carlitos'
+    // so the drawing's feet stop well short of the support point while Alfredito'
     // full-bleed canvas reached it. This closes exactly that gap.
     this.heroFootingOffsetY =
       HERO_SUPPORT_OFFSET_PX -
@@ -347,7 +353,6 @@ export class JourneyScene extends Phaser.Scene {
         });
       },
       advanceToEncounter: async () => {
-        if (!import.meta.env.DEV) return false;
         const expectedFinish = this.finishFlow;
         try {
           const { ChomperScene } = await import('@/game/scenes/ChomperScene');
@@ -468,6 +473,7 @@ export class JourneyScene extends Phaser.Scene {
     sessionState.coolDown(deltaSeconds);
 
     const snapshot = sessionState.snapshot();
+    this.syncReserveForm(snapshot.recoveryChances);
     const mood = this.emotionController.getMood(snapshot.displayLevel);
     runTelemetryStore.samplePulse(snapshot.currentPulse, deltaSeconds);
 
@@ -688,11 +694,10 @@ export class JourneyScene extends Phaser.Scene {
 
     this.updateHitReaction();
 
-    // "El Latido de Carlitos": a read-only mirror of the reserve the runner
+    // "El Latido de Alfredito": a read-only mirror of the reserve the runner
     // already tracks. It never grants or consumes anything.
-    this.carlitosHeartbeat.update(
-      this.hero.x,
-      this.hero.y,
+    this.alfreditoPower.update(
+      this.hero,
       time,
       snapshot.recoveryChances > 0 && !finishResolved && !this.failFlow.isResolved()
     );
@@ -781,13 +786,13 @@ export class JourneyScene extends Phaser.Scene {
       if (event.type === 'reserve_fill') {
         this.feedback.collect = Math.max(this.feedback.collect, 0.34);
         this.feedback.awakening = Math.max(this.feedback.awakening, 0.24);
-        this.carlitosHeartbeat.onReserveFilled();
+        this.alfreditoPower.onReserveFilled();
 
         if (!this.failFlow.isResolved() && !this.finishFlow.isResolved()) {
           if (this.guidance.showOnce('reserve_gain')) {
             this.discoveryFlow.trigger('reserve_gain', this.time.now);
           } else {
-            this.emitGuidanceLine('Reserva lista.', 2000, this.time.now);
+            this.emitGuidanceLine('¡El Latido de Alfredito!' , 2000, this.time.now);
           }
         }
       }
@@ -795,7 +800,7 @@ export class JourneyScene extends Phaser.Scene {
       if (event.type === 'reserve_spent') {
         this.feedback.collect = Math.max(this.feedback.collect, 0.26);
         this.feedback.awakening = Math.max(this.feedback.awakening, 0.14);
-        this.carlitosHeartbeat.onReserveSpent(this.hero.x, this.hero.y);
+        this.alfreditoPower.onReserveSpent();
 
         if (!this.failFlow.isResolved() && !this.finishFlow.isResolved() && this.guidance.showOnce('reserve_spent')) {
           this.discoveryFlow.trigger('reserve_spent', this.time.now);
@@ -807,7 +812,7 @@ export class JourneyScene extends Phaser.Scene {
   private handleShutdown() {
     this.pauseFlow.destroy();
     this.discoveryFlow.hide();
-    this.carlitosHeartbeat?.destroy();
+    this.alfreditoPower?.destroy();
     this.backdropRenderer?.destroy();
     // Kill the exit fade and park the shark so a restarted scene can never
     // inherit an in-flight tween or an on-screen transform.
@@ -839,8 +844,7 @@ export class JourneyScene extends Phaser.Scene {
     bubble.fillStyle(0xf4ffd8, 0.035);
     bubble.fillRoundedRect(-22, -13, 30, 7, 6);
 
-    const text = this.add
-      .text(0, -5, FIRST_HIT_REACTION, {
+    const text = uiText(this, 0, -5, FIRST_HIT_REACTION, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '16px',
         color: '#fff8ee',
@@ -849,8 +853,7 @@ export class JourneyScene extends Phaser.Scene {
         align: 'center'
       })
       .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#05080b', 2, false, true);
+      .setResolution(2);
 
     return {
       container: this.add.container(0, 0, [bubble, text]).setDepth(6.2).setAlpha(0).setVisible(false),
@@ -963,6 +966,26 @@ export class JourneyScene extends Phaser.Scene {
     this.hitReactionStrength = strength;
     this.heroAnimator.noteHit();
     this.hitReaction.setVisible(true).setAlpha(1).setScale(0.94 + strength * 0.05);
+  }
+
+  private reserveAppearance(reserves: number): PlayableCharacter {
+    const form = reserveForm(this.selectedCharacter, reserves);
+    return form.id === 'hero' ? { ...form, poses: { ...form.poses, ...reservePoses } } : form;
+  }
+
+  private syncReserveForm(reserves: number) {
+    const form = this.reserveAppearance(reserves);
+    if (form.id === this.character.id) return;
+    const oldScale = this.baseHeroScale;
+    this.character = form;
+    this.baseHeroScale = getGameplayScale(form);
+    const ratio = this.baseHeroScale / oldScale;
+    this.heroRenderScaleX *= ratio;
+    this.heroRenderScaleY *= ratio;
+    this.heroFootingOffsetY = HERO_SUPPORT_OFFSET_PX - HERO_FOOTING_VISUAL_OFFSET_Y -
+      getFootOffsetPx(form, CHARACTER_RENDER_ORIGIN.y);
+    this.heroRestY = runnerConfig.hero.runY + HERO_FOOTING_VISUAL_OFFSET_Y + this.heroFootingOffsetY;
+    this.heroAnimator.setCharacter(form);
   }
 
   /**

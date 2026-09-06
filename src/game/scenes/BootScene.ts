@@ -1,3 +1,4 @@
+import { uiText } from '@/ui/nativeText';
 import Phaser from 'phaser';
 
 import { importWithRecovery } from '@/app/importWithRecovery';
@@ -91,8 +92,7 @@ export class BootScene extends Phaser.Scene {
     // one case where the neutral handoff intentionally becomes a visible screen.
     this.emitUiScreen();
     this.errorText?.destroy();
-    this.errorText = this.add
-      .text(centerX, centerY, 'No se abrió.\nToca para recargar.', {
+    this.errorText = uiText(this, centerX, centerY, 'No se abrió.\nToca para recargar.', {
         fontFamily: UI_FONT_STACK,
         fontSize: '14px',
         color: '#fff5ea',

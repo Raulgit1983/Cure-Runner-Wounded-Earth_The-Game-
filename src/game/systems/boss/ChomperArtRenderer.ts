@@ -74,7 +74,6 @@ export class ChomperArtRenderer {
   private readonly gold: Phaser.GameObjects.Image;
 
   static preload(scene: Phaser.Scene) {
-    if (!import.meta.env.DEV) return;
     for (const part of Object.values(CHOMPER_ART)) {
       if (!scene.textures.exists(part.key)) scene.load.image(part.key, part.url);
     }

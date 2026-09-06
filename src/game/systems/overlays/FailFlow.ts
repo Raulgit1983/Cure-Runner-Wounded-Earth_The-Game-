@@ -1,3 +1,4 @@
+import { uiText } from '@/ui/nativeText';
 import Phaser from 'phaser';
 
 import { journeyConfig } from '@/game/content/journeyConfig';
@@ -185,71 +186,65 @@ export class FailFlow {
     const panel = this.scene.add.graphics();
     panel.fillStyle(0x10151d, 0.96);
     panel.lineStyle(2, 0xdce9d6, 0.1);
-    panel.fillRoundedRect(-118, -80, 236, 176, 20);
-    panel.strokeRoundedRect(-118, -80, 236, 176, 20);
+    panel.fillRoundedRect(-154, -112, 308, 260, 20);
+    panel.strokeRoundedRect(-154, -112, 308, 260, 20);
     panel.lineStyle(1, 0xf7fff0, 0.018);
-    panel.strokeRoundedRect(-110, -72, 220, 160, 16);
+    panel.strokeRoundedRect(-146, -104, 292, 244, 16);
     panel.fillStyle(0xf1ffbe, 0.024);
     panel.fillEllipse(0, -28, 72, 20);
     panel.fillStyle(0xd8f4df, 0.03);
     panel.fillCircle(-80, -30, 2);
     panel.fillCircle(80, -30, 2);
 
-    const title = this.scene.add
-      .text(0, -34, STAGE_OVERLAY_COPY[this.stageKey].failTitle, {
+    const title = uiText(this.scene, 0, -70, STAGE_OVERLAY_COPY[this.stageKey].failTitle, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '17px',
+        fontSize: '24px',
         color: '#fff8ef',
         stroke: '#091018',
         strokeThickness: 2,
         align: 'center'
       })
       .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 3, false, true);
-    const body = this.scene.add
-      .text(0, 2, STAGE_OVERLAY_COPY[this.stageKey].failBody, {
+      .setResolution(2);
+    const body = uiText(this.scene, 0, -16, STAGE_OVERLAY_COPY[this.stageKey].failBody, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '14px',
+        fontSize: '17px',
         color: '#f3f0e8',
         stroke: '#091018',
         strokeThickness: 1,
         align: 'center',
-        wordWrap: { width: 182, useAdvancedWrap: true },
+        wordWrap: { width: 260, useAdvancedWrap: true },
         lineSpacing: 3
       })
       .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const closing = this.scene.add
-      .text(0, 34, STAGE_OVERLAY_COPY[this.stageKey].failClosing, {
+      .setResolution(2);
+    const closing = uiText(this.scene, 0, 34, STAGE_OVERLAY_COPY[this.stageKey].failClosing, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '12px',
+        fontSize: '16px',
         color: '#cfe8d9',
         stroke: '#091018',
         strokeThickness: 1,
         align: 'center'
       })
       .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
+      .setResolution(2);
     const replayButton = createPanelButton(
       this.scene,
       REPLAY_BUTTON_LABEL,
-      98,
+      128,
       () => this.triggerRestart(),
       '11px'
     );
     const homeButton = createPanelButton(
       this.scene,
       HOME_BUTTON_LABEL,
-      108,
+      128,
       () => this.host.returnToStart(),
       '11px'
     );
 
-    replayButton.setPosition(-56, 82);
-    homeButton.setPosition(56, 82);
+    replayButton.setPosition(-70, 106);
+    homeButton.setPosition(70, 106);
 
     return this.scene.add
       .container(x, y, [panel, title, body, closing, replayButton, homeButton])

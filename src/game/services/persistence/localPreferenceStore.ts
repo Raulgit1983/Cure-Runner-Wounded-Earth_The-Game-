@@ -23,7 +23,7 @@ export const localPreferenceStore = {
   /**
    * Never throws and never returns an id that cannot be played.
    *
-   * Migration: `hero` (Carlitos) used to be a valid stored choice and is now a
+   * Migration: `hero` (Alfredito) used to be a valid stored choice and is now a
    * support power rather than a playable character. A save that still names him
    * — like any unknown or corrupt value — resolves to the default Devilz here.
    * Nothing is deleted or rewritten: no other preference and no progress is

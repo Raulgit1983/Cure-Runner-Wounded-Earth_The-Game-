@@ -3,14 +3,7 @@ import Phaser from 'phaser';
 import { journeyConfig } from '@/game/content/journeyConfig';
 import { BootScene } from '@/game/scenes/BootScene';
 
-const isCoarsePointer = () =>
-  typeof window !== 'undefined' &&
-  typeof window.matchMedia === 'function' &&
-  window.matchMedia('(hover: none) and (pointer: coarse)').matches;
-
 export const createGameConfig = (parent: string): Phaser.Types.Core.GameConfig => {
-  const preferPerformance = isCoarsePointer();
-
   return {
     banner: false,
     type: Phaser.AUTO,
@@ -32,7 +25,8 @@ export const createGameConfig = (parent: string): Phaser.Types.Core.GameConfig =
       }
     },
     render: {
-      antialias: !preferPerformance,
+      antialias: true,
+      antialiasGL: true,
       pixelArt: false,
       powerPreference: 'high-performance'
     }

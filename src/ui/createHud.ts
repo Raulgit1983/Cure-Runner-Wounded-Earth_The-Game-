@@ -89,7 +89,8 @@ export const createHud = (root: HTMLElement) => {
   }
 
   const applyVictoryQuiet = () => {
-    root.style.opacity = victoryQuiet ? '0.38' : '1';
+    root.style.opacity = victoryQuiet ? '0' : '1';
+    if (pauseButton) pauseButton.disabled = victoryQuiet;
     root.style.transform = victoryQuiet ? 'translateY(-4px)' : 'translateY(0)';
 
     if (pulse) {
@@ -108,7 +109,7 @@ export const createHud = (root: HTMLElement) => {
 
     if (hint) {
       hint.style.opacity = victoryQuiet ? '0' : hintBaseOpacity;
-      hint.style.maxHeight = victoryQuiet ? '0px' : '48px';
+      hint.style.maxHeight = victoryQuiet ? '0px' : '72px';
       hint.style.padding = victoryQuiet ? '0 9px' : '6px 9px';
       hint.style.borderColor = victoryQuiet ? 'rgba(255, 255, 255, 0)' : 'rgba(255, 255, 255, 0.06)';
     }
@@ -135,15 +136,15 @@ export const createHud = (root: HTMLElement) => {
       state.currentPulse <= 0.34
         ? 'Busca aire.'
         : state.recoveryChances > 0
-          ? 'Reserva lista.'
+          ? 'El Latido de Alfredito está contigo.'
           : state.noteProgress > 0
             ? 'La reserva crece.'
             : 'Toca para saltar.';
     hintBaseOpacity =
       state.currentPulse <= 0.34
-        ? '0.84'
+        ? '1'
         : state.noteProgress > 0
-          ? '0.72'
+          ? '1'
           : '0.9';
   };
 

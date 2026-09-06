@@ -74,7 +74,7 @@ export interface CharacterPoseSet {
  * Where the drawing actually is inside its source canvas, measured once offline
  * from the alpha channel and committed as data.
  *
- * This exists because the two canvases in play are not comparable. Carlitos'
+ * This exists because the two canvases in play are not comparable. Alfredito'
  * art is cropped tight (512x458, full-bleed), while animation pack v2 uses a
  * padded 512x512 canvas with ~85px of transparency below the character. Sizing
  * or footing a sprite by its canvas therefore draws pack-v2 characters too
@@ -126,12 +126,12 @@ export type PlayableCharacterId = 'hero' | 'devi' | 'lovu' | 'divu';
 export const CHARACTER_RENDER_ORIGIN = heroProfile.renderOrigin;
 
 /**
- * Carlitos is NOT selectable any more. He stays registered so old saved
+ * Alfredito is NOT selectable any more. He stays registered so old saved
  * preferences resolve without throwing, and so his `main` texture is available
- * for "El Latido de Carlitos" — the visual form of the existing reserve.
+ * for "El Latido de Alfredito" — the visual form of the existing reserve.
  */
 export const SUPPORT_CHARACTER_ID: PlayableCharacterId = 'hero';
-export const SUPPORT_POWER_NAME = 'El Latido de Carlitos';
+export const SUPPORT_POWER_NAME = 'El Latido de Alfredito';
 
 export const DEFAULT_CHARACTER_ID: PlayableCharacterId = 'devi';
 
@@ -223,21 +223,16 @@ export const playableCharacters: Record<PlayableCharacterId, PlayableCharacter> 
     mobileScale: devilzProfiles.divu.mobileScale
   },
 
-  // Support only — never offered by the carousel, and `resolveSelectableCharacterId`
-  // guarantees he can never become the active character, so only `main` is
-  // declared: it is the one texture "El Latido de Carlitos" draws.
-  //
-  // His other pose files (hero-jump-rise/-fall, hero-hit-stagger,
-  // hero-finish-awakened) are UNTOUCHED on disk in `src/assets/hero/`; they are
-  // simply not imported, which keeps ~370 kB of unrenderable art out of the
-  // build. Restoring Carlitos as playable means re-adding those four lines here.
+  // Alfredito is the shared reserve form, never a fourth carousel choice.
+  // Boot keeps only the resting pose; reserveArt loads the existing jump, hit
+  // and finish poses lazily with JourneyScene.
   hero: {
     id: 'hero',
-    displayName: 'Carlitos',
+    displayName: 'Alfredito',
     poses: {
       main: { key: heroProfile.textureKey, url: heroMainUrl }
     },
-    // Carlitos' art is cropped tight to its canvas (512x458, no padding), which
+    // Alfredito's art is cropped tight to its canvas (512x458, no padding), which
     // is precisely why footing worked for him and broke for pack v2.
     artMetrics: {
       sourceWidth: 512,
@@ -295,12 +290,7 @@ export const listSelectableCharacters = (): PlayableCharacter[] =>
 
 export const getSupportCharacter = (): PlayableCharacter => playableCharacters[SUPPORT_CHARACTER_ID];
 
-/**
- * Everything BootScene must preload: the full pose set of every selectable
- * character, plus Carlitos' `main` only (the one texture "El Latido de
- * Carlitos" draws). His remaining poses stay unloaded on purpose — nothing can
- * select him, so loading them would be dead bandwidth on mobile.
- */
+/** Boot loads the three Devilz and Alfredito's rest pose; runner loads his other poses. */
 export const listRuntimeCharacterPoses = (): CharacterPose[] => [
   ...listSelectableCharacters().flatMap((character) =>
     Object.values(character.poses).filter((pose): pose is CharacterPose => Boolean(pose))

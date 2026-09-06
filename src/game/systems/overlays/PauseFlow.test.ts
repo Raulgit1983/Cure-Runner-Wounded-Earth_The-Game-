@@ -6,6 +6,11 @@ import { quickHelpContent } from '@/game/content/helpContent';
 
 import { PauseFlow, type PauseFlowHost } from './PauseFlow';
 
+vi.mock('@/ui/nativeText', () => ({ uiText: (scene: any, ...args: any[]) => scene.add.text(...args) }));
+
+const exitGate = vi.hoisted(() => ({ confirm: undefined as (() => void) | undefined }));
+vi.mock('@/ui/confirmExit', () => ({ confirmExit: (_scene: unknown, action: () => void) => { exitGate.confirm = action; } }));
+
 const buttons = vi.hoisted(() => new Map<string, () => void>());
 vi.mock('@/ui/panelButton', () => ({
   createPanelButton: (_scene: unknown, label: string, _width: number, action: () => void) => {
@@ -61,7 +66,7 @@ function fixture() {
   return { flow, scene, host, owned, tweens };
 }
 
-beforeEach(() => { buttons.clear(); vi.stubGlobal('window', new EventTarget()); });
+beforeEach(() => { exitGate.confirm = undefined; buttons.clear(); vi.stubGlobal('window', new EventTarget()); });
 afterEach(() => vi.unstubAllGlobals());
 
 describe('PauseFlow lifecycle', () => {
@@ -99,6 +104,25 @@ describe('PauseFlow lifecycle', () => {
       expect(host.returnToStart).not.toHaveBeenCalled();
     }
   );
+
+  it('requires a separate confirmation to leave the paused run', () => {
+    const { flow, host } = fixture();
+    flow.toggle(); buttons.get(HOME_BUTTON_LABEL)!();
+    expect(flow.isOpen()).toBe(true);
+    expect(host.returnToStart).not.toHaveBeenCalled();
+    expect(host.setRunFrozen).not.toHaveBeenCalledWith(false);
+    exitGate.confirm!();
+    expect(host.returnToStart).toHaveBeenCalledOnce();
+    expect(flow.isOpen()).toBe(false);
+    flow.destroy();
+  });
+
+  it('ignores a retained exit confirmation after shutdown', () => {
+    const { flow, host } = fixture();
+    flow.toggle(); buttons.get(HOME_BUTTON_LABEL)!(); flow.destroy();
+    exitGate.confirm!();
+    expect(host.returnToStart).not.toHaveBeenCalled();
+  });
 
   it('removes both window listeners on shutdown', () => {
     const remove = vi.spyOn(window, 'removeEventListener');

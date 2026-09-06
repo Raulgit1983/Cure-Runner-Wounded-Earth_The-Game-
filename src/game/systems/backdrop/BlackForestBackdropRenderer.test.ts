@@ -23,8 +23,9 @@ class ArtObject {
   setPosition(x: number, y: number) { this.x = x; this.y = y; return this; }
   setTexture(key: string) { this.key = key; return this; }
   clear = vi.fn();
-  fillGradientStyle = vi.fn();
-  fillRect = vi.fn();
+  fillStyle = vi.fn(() => this);
+  fillGradientStyle = vi.fn(() => this);
+  fillRect = vi.fn(() => this);
   destroy() { this.destroyCount++; this.children.forEach((child) => child.destroy()); }
 }
 

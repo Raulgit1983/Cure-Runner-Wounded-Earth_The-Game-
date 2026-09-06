@@ -1,3 +1,4 @@
+import { musicalPulse } from './musicalPulse';
 import { audioCueBus, type AudioCueEvent } from '@/game/services/audio/audioCueBus';
 
 type AudioContextCtor = typeof AudioContext;
@@ -408,6 +409,8 @@ class ReactiveAudioLayer {
     }
 
     envelope.connect(master);
+    musicalPulse.schedule(context, startTime + (context.baseLatency || 0), options.duration,
+      Math.min(1, Math.max(.45, options.volume / .04)));
     oscillator.start(startTime);
     oscillator.stop(stopTime);
     oscillator.onended = () => {

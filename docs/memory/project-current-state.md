@@ -1,6 +1,6 @@
 ---
 tags: [cure-runner, mateo-game, memory, architecture]
-updated: 2026-09-05
+updated: 2026-09-06
 ---
 
 # Project Current State
@@ -9,7 +9,71 @@ Compact, high-signal snapshot. Source of truth for agents. Update when a slice l
 
 ## Current verified snapshot — 2026-09-05
 
-### Latest continuation — Chomper puppet candidate
+## Estado vigente — cierre y publicación, 2026-09-06
+
+Raúl autorizó terminar, guardar y publicar para Mateo. Está confirmado el correo
+`lamanigua.ca@gmail.com`: el usuario aportó la recepción del mensaje técnico.
+Los formularios se envían dentro del juego y siguen al capítulo que corresponde;
+Inicio desde pausa pide confirmación. El final permite empezar desde el primer
+mundo. Se han afinado las preguntas y el tono; luna completa y cristales según
+la referencia elegida, con brillo vinculado al sonido real. Chomper v4 aprobado
+se incorpora a la secuencia pública mediante carga diferida.
+
+Base: `b6be6472a0ff0fbc0e4efc1f3587c06aaf1612af`; rama de trabajo
+`visual/world-01-carlitos-drive`. Se preserva el pase anterior completo.
+232 pruebas / 22 archivos, check y build correctos; 210 capturas en 5 formatos.
+Estado de publicación y recibo exacto: [release-2026-09-06.md](release-2026-09-06.md).
+La publicación está preparada y autorizada; comprobar el recibo antes de
+presentarla como completada. URL:
+https://raulgit1983.github.io/Cure-Runner-Wounded-Planet/
+
+Codex/Astra continúa como único escritor. No activar Claude, reiniciar el pase,
+limpiar originales/art-lab ni modificar el lockfile por rutina. La revisión real
+de Mateo sigue pendiente; las pruebas emuladas no equivalen a Safari físico.
+
+## Histórico — pase editorial inicial, 2026-09-05
+
+Base comprobada antes de editar: rama `visual/world-01-carlitos-drive`, HEAD
+`b6be6472a0ff0fbc0e4efc1f3587c06aaf1612af`, árbol limpio. El pase actual es
+**trabajo local sin commit**, posterior al checkpoint Chomper v4 aprobado.
+
+- Tipografía nativa del navegador sincronizada con Phaser, cuerpos y controles
+  mayores, paneles recompuestos y HUD oculto durante cierres/ayudas.
+- Cierres propios de cada capítulo e invitaciones opcionales a imaginar sonido,
+  gesto y voz. La historia y el ingrediente del bosque siguen abiertos.
+- Moonlight conserva escala uniforme, luna centrada durante todo el recorrido y
+  «Shine to the beat» centrado. Terreno auxiliar independiente del dibujo.
+- Suelo candidato del bosque integrado localmente para revisión, sin modificar
+  la composición original del ojo y la boca. Es una propuesta, no aprobación física.
+- Galería de cinco dibujos originales completos desde portada y cartel final.
+  Invitación a compartir las creaciones tal como estén, cualquiera que sea su acabado.
+- Cartel final de pantalla completa, borrador opcional de mensaje y copia manual.
+  No hay un servicio de envío ni se transmiten creaciones automáticamente.
+- **Alfredito** sustituye el nombre anterior en el juego. Cualquiera de los tres
+  Devilz adopta su figura completa con borde de luz mientras queden reservas;
+  al consumir la última vuelve al personaje elegido. No se añade duración,
+  ventaja, botón, colisión ni regla de obtención.
+- `check`, `build`, **220 tests / 20 archivos** y `diff --check` correctos.
+  QA móvil y límites detallados en [informe del pase](editorial-mobile-2026-09-05.md).
+- Sigue pendiente la revisión física de Raúl de este pase. Chomper continúa
+  sólo en DEV, con su v4 previamente aprobada. Sin commit, push ni deploy.
+
+Revisión local: `http://192.168.1.138:5174/?chomperArt=rig`.
+Capturas: `http://192.168.1.138:5174/art-lab/2026-09-05-editorial-mobile/`.
+Build servido localmente: `http://192.168.1.138:4321/` (termina en el bosque).
+Los servidores dependen de esta máquina; comprobar que siguen activos al reanudar.
+
+Dirección educativa: [criterios de Raúl](editorial-direction-2026-09-05.md).
+La investigación de maestría/doctorado está abierta; los propósitos del diseño
+no son efectos educativos demostrados.
+
+### Próximo paso
+
+Presentar el juego y las capturas para revisión física en móvil. Atender sus
+observaciones antes de cualquier publicación. Preservar este WIP y los
+materiales ignorados en `art-lab/`; no repetir el pase desde cero.
+
+### Previous continuation — Chomper puppet candidate
 
 - Preflight verified clean at `bc8ed3178684dad65952e8dcd57f8f7b0380f036`
   on `visual/world-01-carlitos-drive`. The earlier polish was already committed.

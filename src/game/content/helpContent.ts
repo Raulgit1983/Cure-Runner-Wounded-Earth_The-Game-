@@ -1,13 +1,13 @@
 export const quickHelpContent = {
-  buttonLabel: 'Ayuda breve',
-  title: 'Ayuda breve.',
+  buttonLabel: 'Cómo jugar',
+  title: 'A tu ritmo',
   lead: 'Toca para saltar.',
   lines: [
-    'Vuelve a tocar en el aire. Una tercera te abre la ruta alta.',
-    'Las notas llenan la reserva.',
-    'Tiburoncín devuelve aire si te falta.'
+    'Puedes tocar dos veces más en el aire para subir a las plataformas.',
+    'Cada 100 notas te transformas en Alfredito. Su reserva te protege una vez.',
+    'Alcanza a Tiburoncín si necesitas aire.'
   ],
-  dismiss: 'Entendido',
+  dismiss: 'Volver',
   start: 'Empezar',
   back: 'Volver'
 } as const;

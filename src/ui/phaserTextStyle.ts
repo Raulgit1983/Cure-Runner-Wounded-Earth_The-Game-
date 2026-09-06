@@ -1,11 +1,4 @@
-/**
- * Shared crisp text styling for the loading and level-entry scenes.
- *
- * The Phaser canvas renders at the 360x640 logical size and is then CSS-upscaled
- * to fill the phone, so text baked at 1x (or even 2x) still gets blurred on
- * hi-DPI screens. Baking text at the device pixel ratio keeps it sharp, and a
- * modern system font stack avoids the bitmap-looking Android fallback.
- */
+/** Shared font metrics for Phaser layout and the native uiText surface. */
 
 export const UI_FONT_STACK =
   'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';

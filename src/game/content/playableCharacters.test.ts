@@ -26,11 +26,11 @@ describe('playable character registry', () => {
     ]);
   });
 
-  it('keeps Carlitos registered as support but never selectable', () => {
+  it('keeps Alfredito registered as support but never selectable', () => {
     expect(getSupportCharacter().id).toBe('hero');
     expect(isSelectableCharacterId('hero')).toBe(false);
     // Still resolvable by id so an old save cannot produce an undefined character.
-    expect(getCharacter('hero').displayName).toBe('Carlitos');
+    expect(getCharacter('hero').displayName).toBe('Alfredito');
   });
 
   it('migrates a retired or corrupt saved id to the default Devilz', () => {
@@ -66,7 +66,7 @@ describe('playable character registry', () => {
     expect(new Set(keys).size).toBe(keys.length);
   });
 
-  it('preloads all Devilz poses plus only Carlitos main', () => {
+  it('preloads all Devilz poses plus only Alfredito main', () => {
     const keys = listRuntimeCharacterPoses().map((pose) => pose.key);
 
     expect(keys).toHaveLength(31);
@@ -90,9 +90,9 @@ describe('playable character registry', () => {
     });
   });
 
-  it('needs a real correction for pack v2 and almost none for Carlitos', () => {
+  it('needs a real correction for pack v2 and almost none for Alfredito', () => {
     // Guards the diagnosis itself: the padded v2 canvas is the cause, so its
-    // correction must be large, and the full-bleed Carlitos canvas near zero.
+    // correction must be large, and the full-bleed Alfredito canvas near zero.
     const supportOffset = runnerConfig.visual.groundLineY - runnerConfig.hero.runY;
     const correctionFor = (id: 'devi' | 'lovu' | 'divu' | 'hero') =>
       supportOffset - 4 - getFootOffsetPx(playableCharacters[id], CHARACTER_RENDER_ORIGIN.y);

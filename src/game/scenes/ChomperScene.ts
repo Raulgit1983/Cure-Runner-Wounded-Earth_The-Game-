@@ -1,7 +1,10 @@
+import { confirmExit } from '@/ui/confirmExit';
+import { JourneyPoster } from '@/ui/JourneyPoster';
+import { uiText } from '@/ui/nativeText';
 import Phaser from 'phaser';
 
 import { getCharacter } from '@/game/content/playableCharacters';
-import { wantsChomperRigPreview } from '@/game/content/chomperArt';
+import arenaUrl from '@/assets/chomper/runtime/arena-v1.webp';
 import { localPreferenceStore } from '@/game/services/persistence/localPreferenceStore';
 import { audioCueBus } from '@/game/services/audio/audioCueBus';
 import { sessionState } from '@/game/state/sessionState';
@@ -11,7 +14,7 @@ import { CHOMPER_BITE_PATH } from '@/game/systems/boss/chomperBitePath';
 import { prefersReducedMotion } from '@/ui/reducedMotion';
 import { UI_FONT_STACK } from '@/ui/phaserTextStyle';
 
-/** Local encounter preview: art/balance require review before release. */
+/** Fourth encounter, retaining the v4 movement approved on mobile. */
 export class ChomperScene extends Phaser.Scene {
   private encounter!: ChomperEncounter;
   private bossArt?: ChomperArtRenderer;
@@ -20,9 +23,11 @@ export class ChomperScene extends Phaser.Scene {
   private status!: Phaser.GameObjects.Text;
   private instruction!: Phaser.GameObjects.Text;
   private modal!: Phaser.GameObjects.Container;
+  private pauseControl!: Phaser.GameObjects.Container;
   private modalTitle!: Phaser.GameObjects.Text;
   private modalBody!: Phaser.GameObjects.Text;
   private modalAction!: Phaser.GameObjects.Text;
+  private poster?: JourneyPoster;
   private lastMode = '';
   private lastWarningCycle = -1;
   private leaving = false;
@@ -55,15 +60,16 @@ export class ChomperScene extends Phaser.Scene {
   constructor() { super('chomper'); }
 
   preload() {
-    if (wantsChomperRigPreview()) ChomperArtRenderer.preload(this);
-    // Art-lab candidates cannot enter a production build by accident.
-    if (import.meta.env.DEV && !this.textures.exists('chomper-arena-preview')) {
-      this.load.image('chomper-arena-preview', '/art-lab/2026-09-05-forest-polish/chomper-arena-v1.webp');
+    ChomperArtRenderer.preload(this);
+    // The approved flat arena remains a fallback if a rig texture cannot load.
+    if (!this.textures.exists('chomper-arena-preview')) {
+      this.load.image('chomper-arena-preview', arenaUrl);
     }
   }
 
   create() {
     this.bossArt = undefined;
+    this.poster = undefined;
     this.encounter = new ChomperEncounter();
     this.leaving = false;
     this.lastMode = '';
@@ -74,7 +80,7 @@ export class ChomperScene extends Phaser.Scene {
     window.dispatchEvent(new CustomEvent('mateo:focus-mode', { detail: { active: false } }));
     window.dispatchEvent(new CustomEvent('mateo:victory-state', { detail: { active: false } }));
 
-    if (wantsChomperRigPreview() && ChomperArtRenderer.available(this)) {
+    if (ChomperArtRenderer.available(this)) {
       this.bossArt = new ChomperArtRenderer(this);
     } else if (this.textures.exists('chomper-arena-preview')) {
       this.add.image(0, 64, 'chomper-arena-preview').setOrigin(0).setDisplaySize(360, 540);
@@ -96,20 +102,23 @@ export class ChomperScene extends Phaser.Scene {
     this.ink = this.add.graphics().setDepth(2);
     this.add.rectangle(180, 45, 360, 90, 0x070c18, 0.94).setDepth(4);
     this.text(20, 17, 'CHOMPER', 22, '#f3d779').setDepth(4);
-    this.status = this.text(20, 48, '', 12, '#d5e5db').setDepth(4);
-    this.instruction = this.text(180, 94, '', 13, '#ffffff').setOrigin(0.5, 0).setDepth(4);
-    this.button(302, 38, 78, 'Pausa', () => this.togglePause()).setDepth(5);
-    this.text(180, 609, 'Toca para saltar · dos saltos', 12, '#bfcfc8').setOrigin(0.5).setDepth(4);
+    this.status = this.text(20, 52, '', 15, '#d5e5db').setDepth(4);
+    this.instruction = this.text(180, 104, '', 17, '#ffffff').setOrigin(0.5, 0).setDepth(4);
+    this.pauseControl = this.button(302, 38, 78, 'Pausa', () => this.togglePause()).setDepth(5);
+    this.text(180, 609, 'Toca para saltar · dos saltos', 15, '#bfcfc8').setOrigin(0.5).setDepth(4);
 
     const scrim = this.add.rectangle(0, 0, 360, 640, 0x030711, 0.74).setOrigin(0).setInteractive();
     scrim.on('pointerdown', (_p: unknown, _x: number, _y: number, event: Phaser.Types.Input.EventData) => event.stopPropagation());
-    const panel = this.add.rectangle(180, 310, 308, 298, 0x10212a, 1).setStrokeStyle(2, 0x6b9b92, 0.6);
-    this.modalTitle = this.text(180, 204, '', 23, '#f3d779').setOrigin(0.5);
-    this.modalBody = this.text(180, 260, '', 14, '#e1e9de').setOrigin(0.5, 0);
-    this.modalBody.setWordWrapWidth(252).setAlign('center').setLineSpacing(7);
-    const action = this.button(180, 363, 248, '', () => this.primaryAction());
+    const panel = this.add.rectangle(180, 320, 320, 380, 0x10212a, 1).setStrokeStyle(2, 0x6b9b92, 0.6);
+    this.modalTitle = this.text(180, 176, '', 28, '#f3d779').setOrigin(0.5);
+    this.modalBody = this.text(180, 225, '', 17, '#e1e9de').setOrigin(0.5, 0);
+    this.modalBody.setWordWrapWidth(272).setAlign('center').setLineSpacing(7);
+    const action = this.button(180, 407, 272, '', () => this.primaryAction());
     this.modalAction = action.list[1] as Phaser.GameObjects.Text;
-    const home = this.button(180, 424, 248, 'Volver al inicio', () => this.goHome());
+    const home = this.button(180, 468, 272, 'Volver al inicio', () => {
+      if (this.encounter.snapshot().paused) confirmExit(this, () => this.goHome());
+      else this.goHome();
+    });
     this.modal = this.add.container(0, 0, [scrim, panel, this.modalTitle, this.modalBody, action, home]).setDepth(10);
 
     this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
@@ -255,10 +264,18 @@ export class ChomperScene extends Phaser.Scene {
     const mode = s.paused ? 'paused' : s.phase;
     if (mode === this.lastMode) return;
     this.lastMode = mode;
+    this.pauseControl.setVisible(!['ready', 'paused', 'won', 'lost'].includes(mode));
+    window.dispatchEvent(new CustomEvent('mateo:focus-mode', { detail: { active: ['ready', 'paused', 'won', 'lost'].includes(mode) } }));
+    if (mode === 'won') {
+      this.modal.setVisible(false);
+      this.poster ??= new JourneyPoster(this, 'Has reunido las seis notas de Chomper.',
+        () => this.goHome(), () => this.goHome());
+      this.poster.show();
+      return;
+    }
     const copy: Record<string, [string, string, string]> = {
-      ready: ['Chomper', 'Salta la onda baja y el mordisco al ver «¡Ahora!».\nEn la descarga alta, quédate abajo.\nDespués, busca la nota.', 'Comenzar'],
-      paused: ['En pausa', 'El encuentro te espera.\nLos ataques también están detenidos.', 'Continuar'],
-      won: ['Encuentro superado', 'Has reunido las seis notas.\nEl cierre de la historia sigue en creación.', 'Jugar de nuevo'],
+      ready: ['Chomper', 'Observa el aviso. Salta la onda baja y el mordisco al ver «¡Ahora!».\nDeja pasar la descarga alta por encima. Después, busca la nota.', 'Comenzar'],
+      paused: ['En pausa', 'Tómate un respiro.\nPuedes seguir cuando quieras.', 'Continuar'],
       lost: ['Una vez más', 'Mira qué ataque prepara Chomper antes de saltar.\nPuedes volver a intentarlo.', 'Reintentar']
     };
     const panel = copy[mode];
@@ -271,15 +288,18 @@ export class ChomperScene extends Phaser.Scene {
   }
 
   private text(x: number, y: number, label: string, size: number, color: string) {
-    return this.add.text(x, y, label, { fontFamily: UI_FONT_STACK, fontSize: `${size}px`, color }).setResolution(2);
+    return uiText(this, x, y, label, { fontFamily: UI_FONT_STACK, fontSize: `${size}px`, color }).setResolution(2);
   }
 
   private button(x: number, y: number, width: number, label: string, action: () => void) {
-    const plate = this.add.rectangle(0, 0, width, 48, 0x243c42, 1).setStrokeStyle(1, 0x9ac9b5, 0.75).setInteractive({ useHandCursor: true });
-    const text = this.text(0, 0, label, 14, '#f2edda').setOrigin(0.5);
-    plate.on('pointerdown', (_p: unknown, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
+    const plate = this.add.graphics();
+    plate.fillStyle(0x243c42, 1).fillRoundedRect(-width / 2, -24, width, 48, 12);
+    plate.lineStyle(1, 0x9ac9b5, 0.75).strokeRoundedRect(-width / 2, -24, width, 48, 12);
+    const text = this.text(0, 0, label, 16, '#f2edda').setOrigin(0.5);
+    const hit = this.add.rectangle(0, 0, width, 48, 0, 0).setInteractive({ useHandCursor: true });
+    hit.on('pointerdown', (_p: unknown, _x: number, _y: number, event: Phaser.Types.Input.EventData) => {
       event.stopPropagation(); action();
     });
-    return this.add.container(x, y, [plate, text]);
+    return this.add.container(x, y, [plate, text, hit]);
   }
 }

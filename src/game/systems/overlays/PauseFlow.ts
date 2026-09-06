@@ -1,3 +1,5 @@
+import { confirmExit } from '@/ui/confirmExit';
+import { uiText } from '@/ui/nativeText';
 import Phaser from 'phaser';
 
 import { quickHelpContent } from '@/game/content/helpContent';
@@ -207,9 +209,9 @@ export class PauseFlow {
     });
     this.scene.tweens.add({
       targets: this.pauseStage,
-      alpha: 0.98,
-      scaleX: 0.98,
-      scaleY: 0.98,
+      alpha: 1,
+      scaleX: 1,
+      scaleY: 1,
       duration: 180,
       ease: 'Back.easeOut'
     });
@@ -239,9 +241,9 @@ export class PauseFlow {
     });
     this.scene.tweens.add({
       targets: this.helpStage,
-      alpha: 0.98,
-      scaleX: 0.98,
-      scaleY: 0.98,
+      alpha: 1,
+      scaleX: 1,
+      scaleY: 1,
       duration: 170,
       ease: 'Back.easeOut'
     });
@@ -271,9 +273,9 @@ export class PauseFlow {
     });
     this.scene.tweens.add({
       targets: this.pauseStage,
-      alpha: 0.98,
-      scaleX: 0.98,
-      scaleY: 0.98,
+      alpha: 1,
+      scaleX: 1,
+      scaleY: 1,
       duration: 170,
       ease: 'Back.easeOut'
     });
@@ -284,63 +286,57 @@ export class PauseFlow {
     panel.fillStyle(0x0b1117, 0.96);
     panel.lineStyle(2, 0xdce9d6, 0.1);
     // The second button row ends at y=134; keep it inside the panel with padding.
-    panel.fillRoundedRect(-122, -92, 244, 248, 22);
-    panel.strokeRoundedRect(-122, -92, 244, 248, 22);
+    panel.fillRoundedRect(-154, -108, 308, 286, 22);
+    panel.strokeRoundedRect(-154, -108, 308, 286, 22);
     panel.lineStyle(1, 0xf7fff0, 0.024);
-    panel.strokeRoundedRect(-114, -84, 228, 232, 18);
+    panel.strokeRoundedRect(-146, -100, 292, 270, 18);
     panel.fillStyle(0xf1ffbe, 0.026);
     panel.fillEllipse(0, -48, 88, 24);
 
-    const title = this.scene.add
-      .text(0, -48, PAUSE_TITLE, {
+    const title = uiText(this.scene, 0, -48, PAUSE_TITLE, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '20px',
+        fontSize: '26px',
         color: '#f2ffbe',
         stroke: '#081018',
         strokeThickness: 2,
         align: 'center'
       })
       .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#03060a', 3, false, true);
-    const body = this.scene.add
-      .text(0, -8, PAUSE_BODY, {
+      .setResolution(2);
+    const body = uiText(this.scene, 0, -8, PAUSE_BODY, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '13px',
+        fontSize: '17px',
         color: '#fff7ec',
         stroke: '#091018',
         strokeThickness: 1,
         align: 'center',
-        wordWrap: { width: 188, useAdvancedWrap: true },
+        wordWrap: { width: 256, useAdvancedWrap: true },
         lineSpacing: 3
       })
       .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const closing = this.scene.add
-      .text(0, 28, PAUSE_CLOSING, {
+      .setResolution(2);
+    const closing = uiText(this.scene, 0, 28, PAUSE_CLOSING, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '12px',
+        fontSize: '16px',
         color: '#cfe8d9',
         stroke: '#091018',
         strokeThickness: 1,
         align: 'center'
       })
       .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
+      .setResolution(2);
     const continueButton = createPanelButton(
       this.scene,
       CONTINUE_BUTTON_LABEL,
-      104,
+      128,
       () => this.close(true),
       '11px'
     );
-    const helpButton = createPanelButton(this.scene, HELP_BUTTON_LABEL, 98, () => this.openHelp(), '11px');
+    const helpButton = createPanelButton(this.scene, HELP_BUTTON_LABEL, 128, () => this.openHelp(), '11px');
     const replayButton = createPanelButton(
       this.scene,
       REPLAY_BUTTON_LABEL,
-      98,
+      128,
       () => {
         if (this.destroyed) return;
         this.close(false);
@@ -351,19 +347,22 @@ export class PauseFlow {
     const homeButton = createPanelButton(
       this.scene,
       HOME_BUTTON_LABEL,
-      108,
+      128,
       () => {
         if (this.destroyed) return;
-        this.close(false);
-        this.host.returnToStart();
+        confirmExit(this.scene, () => {
+          if (this.destroyed) return;
+          this.close(false);
+          this.host.returnToStart();
+        });
       },
       '11px'
     );
 
-    continueButton.setPosition(-56, 76);
-    helpButton.setPosition(56, 76);
-    replayButton.setPosition(-56, 116);
-    homeButton.setPosition(56, 116);
+    continueButton.setPosition(-70, 78);
+    helpButton.setPosition(70, 78);
+    replayButton.setPosition(-70, 134);
+    homeButton.setPosition(70, 134);
 
     return this.scene.add
       .container(x, y, [panel, title, body, closing, continueButton, helpButton, replayButton, homeButton])
@@ -377,57 +376,51 @@ export class PauseFlow {
     const panel = this.scene.add.graphics();
     panel.fillStyle(0x0b1117, 0.96);
     panel.lineStyle(2, 0xdce9d6, 0.1);
-    panel.fillRoundedRect(-122, -106, 244, 250, 22);
-    panel.strokeRoundedRect(-122, -106, 244, 250, 22);
+    panel.fillRoundedRect(-154, -182, 308, 384, 22);
+    panel.strokeRoundedRect(-154, -182, 308, 384, 22);
     panel.lineStyle(1, 0xf7fff0, 0.024);
-    panel.strokeRoundedRect(-114, -98, 228, 234, 18);
+    panel.strokeRoundedRect(-146, -174, 292, 368, 18);
     panel.fillStyle(0xf1ffbe, 0.026);
     panel.fillEllipse(0, -62, 96, 24);
 
-    const title = this.scene.add
-      .text(0, -62, quickHelpContent.title, {
+    const title = uiText(this.scene, 0, -142, quickHelpContent.title, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '18px',
+        fontSize: '26px',
         color: '#f2ffbe',
         stroke: '#081018',
         strokeThickness: 2,
         align: 'center'
       })
       .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#03060a', 3, false, true);
-    const lead = this.scene.add
-      .text(0, -24, quickHelpContent.lead, {
+      .setResolution(2);
+    const lead = uiText(this.scene, 0, -96, quickHelpContent.lead, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '13px',
+        fontSize: '17px',
         color: '#fff8ef',
         stroke: '#091018',
         strokeThickness: 1,
         align: 'center',
-        wordWrap: { width: 188, useAdvancedWrap: true },
-        lineSpacing: 3
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const lineA = this.scene.add
-      .text(0, 16, quickHelpContent.lines[0], {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '12px',
-        color: '#d9e2e8',
-        align: 'center',
-        wordWrap: { width: 194, useAdvancedWrap: true },
+        wordWrap: { width: 256, useAdvancedWrap: true },
         lineSpacing: 3
       })
       .setOrigin(0.5)
       .setResolution(2);
-    const lineB = this.scene.add
-      .text(0, 54, `${quickHelpContent.lines[1]} ${quickHelpContent.lines[2]}`, {
+    const lineA = uiText(this.scene, 0, -42, quickHelpContent.lines[0], {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '12px',
+        fontSize: '16px',
         color: '#d9e2e8',
         align: 'center',
-        wordWrap: { width: 194, useAdvancedWrap: true },
+        wordWrap: { width: 256, useAdvancedWrap: true },
+        lineSpacing: 3
+      })
+      .setOrigin(0.5)
+      .setResolution(2);
+    const lineB = uiText(this.scene, 0, 54, `${quickHelpContent.lines[1]} ${quickHelpContent.lines[2]}`, {
+        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
+        fontSize: '16px',
+        color: '#d9e2e8',
+        align: 'center',
+        wordWrap: { width: 256, useAdvancedWrap: true },
         lineSpacing: 3
       })
       .setOrigin(0.5)
@@ -440,7 +433,7 @@ export class PauseFlow {
       '11px'
     );
 
-    backButton.setPosition(0, 104);
+    backButton.setPosition(0, 154);
 
     return this.scene.add
       .container(x, y, [panel, title, lead, lineA, lineB, backButton])

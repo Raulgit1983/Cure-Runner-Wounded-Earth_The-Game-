@@ -87,6 +87,7 @@ app.innerHTML = `
         ${
           shouldSurfaceWelcomeHelp || canOpenFullscreen
             ? `<div class="entry-shell__quick-actions" aria-label="Acciones rápidas">
+                <button class="entry-shell__quick-action" id="entry-gallery" type="button">Los dibujos</button>
                 ${
                   shouldSurfaceWelcomeHelp
                     ? `<button class="entry-shell__quick-action" id="entry-help-toggle" type="button">${quickHelpContent.buttonLabel}</button>`
@@ -412,4 +413,14 @@ window.addEventListener('beforeunload', () => {
   if (typeof document !== 'undefined') {
     document.removeEventListener('fullscreenchange', updateFullscreenButton);
   }
+});
+
+document.getElementById('entry-gallery')?.addEventListener('click', async () => {
+  const { openOriginalGallery } = await import('@/ui/OriginalGallery');
+  openOriginalGallery();
+});
+
+window.addEventListener('mateo:focus-mode', event => {
+  const active = (event as CustomEvent<{ active: boolean }>).detail.active;
+  document.getElementById('game-root')?.setAttribute('data-text-focus', String(active));
 });

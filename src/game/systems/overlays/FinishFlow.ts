@@ -1,3 +1,6 @@
+import { openCollaborationMessage } from '@/ui/CollaborationMessage';
+import { JourneyPoster } from '@/ui/JourneyPoster';
+import { uiText } from '@/ui/nativeText';
 import Phaser from 'phaser';
 import { createRewardArt } from './rewardArt';
 
@@ -7,13 +10,7 @@ import {
   CONTINUE_BODY,
   CONTINUE_CLOSING,
   CONTINUE_TITLE,
-  FINISH_CONTINUE_BUTTON_LABEL,
-  FINISH_CONTINUING_BODY,
-  FINISH_CONTINUING_CLOSING,
-  FINISH_FINAL_BODY,
-  FINISH_FINAL_CLOSING,
   HOME_BUTTON_LABEL,
-  REPLAY_BUTTON_LABEL,
   STAGE_OVERLAY_COPY
 } from '@/game/content/overlayText';
 import { audioCueBus } from '@/game/services/audio/audioCueBus';
@@ -134,6 +131,7 @@ export class FinishFlow {
   private readonly continueStage: Phaser.GameObjects.Container;
   private readonly isMoonlight: boolean;
 
+  private poster?: JourneyPoster;
   private pulse = 0;
   private resolved = false;
   private continueResolved = false;
@@ -419,7 +417,7 @@ export class FinishFlow {
       return;
     }
 
-    if (import.meta.env.DEV && this.stage.nextEncounter) {
+    if (this.stage.nextEncounter) {
       this.continueResolved = true;
       void this.host.advanceToEncounter(this.stage.nextEncounter).then((started) => {
         if (!started) this.continueResolved = false;
@@ -446,138 +444,43 @@ export class FinishFlow {
     this.host.replayCurrentStage();
   }
 
+  private showPoster() {
+    this.poster ??= new JourneyPoster(this.scene, 'Has cruzado los tres capítulos disponibles.',
+      () => this.requestReplay(), () => this.host.returnToStart());
+    this.poster.show();
+  }
+
   private createFinishMessage(x: number, y: number) {
-    const panel = this.scene.add.graphics();
-    panel.fillStyle(0x0b1117, 0.95);
-    panel.lineStyle(2, 0xdce9d6, 0.1);
-    panel.fillRoundedRect(-118, -78, 236, 184, 22);
-    panel.strokeRoundedRect(-118, -78, 236, 184, 22);
-    panel.lineStyle(1, 0xf7fff0, 0.02);
-    panel.strokeRoundedRect(-110, -70, 220, 168, 18);
-    panel.fillStyle(0xf1ffbe, 0.03);
-    panel.fillEllipse(0, -48, 90, 28);
-    panel.fillStyle(0xd8f4df, 0.03);
-    panel.fillCircle(-82, -46, 2);
-    panel.fillCircle(82, -46, 2);
-    panel.lineStyle(2, 0x9ee9b6, 0.06);
-    panel.lineBetween(-68, -6, 68, -6);
-
     const copy = STAGE_OVERLAY_COPY[this.stage.key];
-    // Body and closing depend on whether ANOTHER stage follows, not on which
-    // stage this is. They used to ride on the moonlight flag, which silently
-    // told the player "no hay más niveles" the moment moonlight gained a
-    // successor.
-    const isFinalStage = !this.stage.nextStage && !(import.meta.env.DEV && this.stage.nextEncounter);
-    const title = this.scene.add
-      .text(0, -48, copy.finishTitle, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '14px',
-        color: '#fff8ef',
-        stroke: '#091018',
-        strokeThickness: 1,
-        align: 'center',
-        wordWrap: { width: 192, useAdvancedWrap: true },
-        lineSpacing: 2
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const label = this.scene.add
-      .text(0, -20, copy.finishLabel, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '20px',
-        color: '#e9ffaf',
-        stroke: '#081018',
-        strokeThickness: 2,
-        align: 'center'
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#03060a', 3, false, true);
-    const body = this.scene.add
-      .text(0, 16, isFinalStage ? FINISH_FINAL_BODY : FINISH_CONTINUING_BODY, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '13px',
-        color: '#fff7ec',
-        stroke: '#091018',
-        strokeThickness: 1,
-        align: 'center',
-        wordWrap: { width: 186, useAdvancedWrap: true },
-        lineSpacing: 3
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const closing = this.scene.add
-      .text(0, 44, isFinalStage ? FINISH_FINAL_CLOSING : FINISH_CONTINUING_CLOSING, {
-        fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '12px',
-        color: '#cfe8d9',
-        stroke: '#091018',
-        strokeThickness: 1,
-        align: 'center',
-        wordWrap: { width: 188, useAdvancedWrap: true },
-        lineSpacing: 3
-      })
-      .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const continueButton = createPanelButton(
-      this.scene,
-      FINISH_CONTINUE_BUTTON_LABEL,
-      88,
-      () => this.openContinuation(),
-      '11px'
-    );
-    const homeButton = createPanelButton(
-      this.scene,
-      HOME_BUTTON_LABEL,
-      118,
-      () => this.host.returnToStart(),
-      '11px'
-    );
-    const replayButton = createPanelButton(
-      this.scene,
-      REPLAY_BUTTON_LABEL,
-      94,
-      () => this.requestReplay(),
-      '11px'
-    );
-
-    // Final level: replay + home instead of a misleading continuation CTA.
-    if (isFinalStage) {
-      // The unused button must be destroyed: createPanelButton() adds it to the
-      // scene at (0,0), so leaving it unparented strands a stray button in the
-      // top-left corner for the whole run.
-      continueButton.destroy();
-      replayButton.setPosition(-54, 86);
-      homeButton.setPosition(54, 86);
-      return this.scene.add.container(x, y, [
-        panel,
-        title,
-        label,
-        body,
-        closing,
-        replayButton,
-        homeButton
-      ]);
-    }
-
-    // Mid-journey: continue + home. Destroy the unused replay button so it does
-    // not linger at the scene origin (see note above).
-    replayButton.destroy();
-    continueButton.setPosition(-56, 86);
-    homeButton.setPosition(54, 86);
-
-    return this.scene.add.container(x, y, [
-      panel,
-      title,
-      label,
-      body,
-      closing,
-      continueButton,
-      homeButton
-    ]);
+    const panel = this.scene.add.graphics();
+    panel.fillStyle(0x101c26, 1).fillRoundedRect(-154, -104, 308, 346, 20);
+    panel.lineStyle(1, 0x729489, 0.7).strokeRoundedRect(-154, -104, 308, 346, 20);
+    const title = uiText(this.scene, 0, -78, copy.finishTitle, {
+      fontSize: '14px', color: '#d6e6dd', align: 'center'
+    }).setOrigin(0.5);
+    const label = uiText(this.scene, 0, -42, copy.finishLabel, {
+      fontSize: '22px', color: '#f2ffbe', align: 'center', wordWrap: { width: 274 }
+    }).setOrigin(0.5);
+    const body = uiText(this.scene, 0, 16, copy.finishBody, {
+      fontSize: '16px', color: '#fff5ea', align: 'center', wordWrap: { width: 268 }, lineSpacing: 4
+    }).setOrigin(0.5);
+    const invitation = uiText(this.scene, 0, 92, copy.invitation, {
+      fontSize: '15px', color: '#cfe8d9', align: 'center', wordWrap: { width: 264 }, lineSpacing: 4
+    }).setOrigin(0.5);
+    const follows = this.stage.nextStage || this.stage.nextEncounter;
+    const next = createPanelButton(this.scene, follows ? 'Seguir' : 'Abrir cartel', 132,
+      () => follows ? this.openContinuation() : this.showPoster());
+    const home = createPanelButton(this.scene, HOME_BUTTON_LABEL, 116, () => this.host.returnToStart());
+    const contribute = createPanelButton(this.scene, 'Contar mi idea', 268,
+      () => openCollaborationMessage(this.stage.key, this.scene, {
+        label: this.stage.nextStage === 'moonlight-mountain' ? 'Ir a la montaña'
+          : this.stage.nextStage === 'black-forest' ? 'Entrar al bosque'
+            : this.stage.nextEncounter ? 'Conocer a Chomper' : 'Ver el final',
+        action: () => follows ? this.openContinuation() : this.showPoster()
+      }));
+    contribute.setPosition(0, 151);
+    next.setPosition(-65, 207); home.setPosition(70, 207);
+    return this.scene.add.container(x, y, [panel, title, label, body, invitation, contribute, next, home]);
   }
 
   private createContinueStage(x: number, y: number) {
@@ -594,8 +497,7 @@ export class FinishFlow {
     panel.fillCircle(-76, -30, 2);
     panel.fillCircle(76, -30, 2);
 
-    const title = this.scene.add
-      .text(0, -30, CONTINUE_TITLE, {
+    const title = uiText(this.scene, 0, -30, CONTINUE_TITLE, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
         fontSize: '20px',
         color: '#f2ffbe',
@@ -604,12 +506,10 @@ export class FinishFlow {
         align: 'center'
       })
       .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#03060a', 3, false, true);
-    const body = this.scene.add
-      .text(0, 6, CONTINUE_BODY, {
+      .setResolution(2);
+    const body = uiText(this.scene, 0, 6, CONTINUE_BODY, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '13px',
+        fontSize: '16px',
         color: '#fff7ec',
         stroke: '#091018',
         strokeThickness: 1,
@@ -618,12 +518,10 @@ export class FinishFlow {
         lineSpacing: 3
       })
       .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
-    const closing = this.scene.add
-      .text(0, 46, CONTINUE_CLOSING, {
+      .setResolution(2);
+    const closing = uiText(this.scene, 0, 46, CONTINUE_CLOSING, {
         fontFamily: 'Trebuchet MS, Verdana, sans-serif',
-        fontSize: '12px',
+        fontSize: '15px',
         color: '#cfe8d9',
         stroke: '#091018',
         strokeThickness: 1,
@@ -632,8 +530,7 @@ export class FinishFlow {
         lineSpacing: 3
       })
       .setOrigin(0.5)
-      .setResolution(2)
-      .setShadow(0, 1, '#04070b', 2, false, true);
+      .setResolution(2);
     const button = createPanelButton(this.scene, HOME_BUTTON_LABEL, 136, () => this.host.returnToStart());
 
     button.setPosition(0, 86);

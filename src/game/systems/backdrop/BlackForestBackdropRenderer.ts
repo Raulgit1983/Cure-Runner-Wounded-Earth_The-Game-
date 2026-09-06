@@ -120,6 +120,8 @@ const PLATE_AWAKENING_ALPHA_GAIN = 0.03;
 const IRIS_FOLLOW_SHARPNESS = 4.2;
 
 export class BlackForestBackdropRenderer implements StageBackdrop {
+  private readonly ground?: Phaser.GameObjects.Image;
+  private readonly groundFade?: Phaser.GameObjects.Graphics;
   private readonly sky: Phaser.GameObjects.Graphics;
   private readonly midPlane: Phaser.GameObjects.Container;
   private readonly feather: Phaser.GameObjects.Graphics;
@@ -145,6 +147,15 @@ export class BlackForestBackdropRenderer implements StageBackdrop {
     this.sky = scene.add.graphics().setDepth(0);
     this.sky.fillGradientStyle(SKY_TOP, SKY_TOP, SKY_BOTTOM, SKY_BOTTOM, 1, 1, 1, 1);
     this.sky.fillRect(0, 0, width, height);
+
+    if (scene.textures.exists('black-forest-floor-v1')) {
+      this.ground = scene.add.image(0, 100, 'black-forest-floor-v1')
+        .setOrigin(0).setScale(0.5).setDepth(0.1).setAlpha(0.92);
+      this.groundFade = scene.add.graphics().setDepth(0.11);
+      this.groundFade.fillStyle(SKY_BOTTOM, 1).fillRect(0, 100, width, 260);
+      this.groundFade.fillGradientStyle(SKY_BOTTOM, SKY_BOTTOM, SKY_BOTTOM, SKY_BOTTOM, 1, 1, 0, 0);
+      this.groundFade.fillRect(0, 360, width, 142);
+    }
 
     // No tint anywhere below this line: the plate and the cut-outs keep the RGB
     // and the alpha they were authored with.
@@ -333,6 +344,8 @@ export class BlackForestBackdropRenderer implements StageBackdrop {
     this.midPlane.destroy(true);
     this.feather.destroy();
     this.sky.destroy();
+    this.ground?.destroy();
+    this.groundFade?.destroy();
   }
 
   private applyLayout() {

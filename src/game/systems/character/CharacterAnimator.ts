@@ -30,7 +30,7 @@ const LANDING_BURST_EPSILON = 0.001;
  * is deliberately no second detector here.
  */
 export class CharacterAnimator {
-  private readonly runAnimationKey: string | null;
+  private runAnimationKey: string | null;
   private hitLockSeconds = 0;
   private landingLockSeconds = 0;
   private previousAirState: AirPoseState | null = null;
@@ -41,9 +41,18 @@ export class CharacterAnimator {
   constructor(
     private readonly scene: Phaser.Scene,
     private readonly sprite: Phaser.GameObjects.Sprite,
-    private readonly character: PlayableCharacter
+    private character: PlayableCharacter
   ) {
     this.runAnimationKey = this.registerRunAnimation();
+  }
+
+  /** Appearance only: changing form must not reset the runner or its pose locks. */
+  setCharacter(character: PlayableCharacter) {
+    if (character.id === this.character.id) return;
+    this.sprite.stop();
+    this.character = character;
+    this.runAnimationKey = this.registerRunAnimation();
+    this.currentState = null;
   }
 
   /** Called when the character takes a hit; keeps the existing 150 ms lock. */
