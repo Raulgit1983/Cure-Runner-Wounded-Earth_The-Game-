@@ -44,8 +44,12 @@ Base: `b6be6472a0ff0fbc0e4efc1f3587c06aaf1612af`; rama de trabajo
 `visual/world-01-carlitos-drive`. Se preserva el pase anterior completo.
 232 pruebas / 22 archivos, check y build correctos; 210 capturas en 5 formatos.
 Estado de publicación y recibo exacto: [release-2026-09-06.md](release-2026-09-06.md).
-La publicación está preparada y autorizada; comprobar el recibo antes de
-presentarla como completada. URL:
+Código publicado: `18a4e1f489fa4b40188d5685f5f911edd1adbd39`; build y deploy
+de GitHub Actions 34019527754 correctos. Los 11 archivos públicos HTML/JS/CSS
+coinciden con el build comprobado. QA público del recorrido y formulario PASS;
+un envío real desde el juego recibió HTTP 200/success=true. Este checkpoint
+documental posterior permanece
+en la rama de trabajo; main conserva la versión publicada. URL:
 https://raulgit1983.github.io/Cure-Runner-Wounded-Planet/
 
 Codex/Astra continúa como único escritor. No activar Claude, reiniciar el pase,
